@@ -12,6 +12,13 @@
             <i class="iconfont icon-connections"></i>
           </a>
         </div>
+
+        <div :class="[{ active: isTestplan }, 'leftbar-item']">
+          <a href="javascript:;" @click="routeToPage('/test_plan')">
+            <i class="iconfont el-icon-s-order"></i>
+          </a>
+        </div>
+
         <div :class="[{ active: isCreate }, 'leftbar-item']">
           <a href="javascript:;" @click="routeToPage('/recent_connections/0?oper=create')">
             <i class="iconfont icon-new"></i>
@@ -64,6 +71,9 @@ export default class Leftbar extends Vue {
   }
   get isConnection(): boolean {
     return ['Connections', 'ConnectionDetails'].includes(this.$route.name || '') && this.$route.query.oper !== 'create'
+  }
+  get isTestplan(): boolean {
+    return this.$route.path === '/test_plan'
   }
   get isCreate(): boolean {
     return this.$route.name === 'ConnectionDetails' && this.$route.query.oper === 'create'

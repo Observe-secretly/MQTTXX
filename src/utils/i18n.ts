@@ -1,3 +1,4 @@
+import testplan from '@/lang/testplan'
 import VueI18n from 'vue-i18n'
 
 type FormatLang = {
@@ -16,6 +17,7 @@ export const formati18n = (transItems: i18nLocaleModel, langs: SupportLangModel)
       log: {},
       help: {},
       update: {},
+      testplan: {},
     }
   })
   transItems.forEach((item) => {

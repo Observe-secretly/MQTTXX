@@ -5,6 +5,18 @@ export class initTable1629476510574 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
+        CREATE TABLE "TestPlanEntity" (
+            "id" varchar PRIMARY KEY NOT NULL,
+            "name" varchar NOT NULL,
+            "connection_id" varchar NOT NULL,
+            "protocol_version" varchar NOT NULL,
+            "payload_type" varchar CHECK(payload_type IN ('Plaintext' , 'Hex' , 'Base64' , 'JSON' , 'CBOR')) NOT NULL DEFAULT ('Plaintext'),
+            "create_persion" varchar NOT NULL,
+            "resp_timeout" integer NOT NULL,
+            "retry_num" integer NOT NULL
+        )
+    `)
+    await queryRunner.query(`
             CREATE TABLE "MessageEntity" (
                 "id" varchar PRIMARY KEY NOT NULL,
                 "createAt" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP),
@@ -693,5 +705,8 @@ export class initTable1629476510574 implements MigrationInterface {
     await queryRunner.query(`
             DROP TABLE "MessageEntity"
         `)
+    await queryRunner.query(`
+        DROP TABLE "TestPlanEntity"
+    `)
   }
 }

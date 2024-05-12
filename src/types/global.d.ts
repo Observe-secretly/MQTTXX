@@ -267,6 +267,18 @@ declare global {
     properties?: ClientPropertiesModel
   }
 
+  interface TestplanModel {
+    id: string
+    name: string
+    connection_id: string
+    protocol_version: string
+    payload_type: any
+    create_persion: string
+    resp_timeout: number
+    retry_num: number
+  }
+  type TestplanModelTree = TestplanModel
+
   // MQTT 5 feature
   interface ClientPropertiesModel {
     sessionExpiryInterval?: number | null

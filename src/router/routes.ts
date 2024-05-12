@@ -19,6 +19,7 @@ const routes: Routes[] = [
       { path: '/log', name: 'Log', component: () => import('@/views/log/index.vue') },
       { path: '/new_window/:id', name: 'newWindow', component: () => import('@/views/window/Window.vue') },
       { path: '/help', name: 'Help', component: () => import('@/views/help/index.vue') },
+      { path: '/test_plan', name: 'TestPlan', component: () => import('@/views/testplan/index.vue') },
     ],
   },
 ]
