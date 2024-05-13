@@ -279,6 +279,22 @@ declare global {
   }
   type TestplanModelTree = TestplanModel
 
+  interface TestPlanCase {
+    id: string
+    group_id: string
+    planId: string
+    name: string
+    sendPayload: string
+    expectPayload: string
+    responsePayload: string
+    result: string
+  }
+
+  interface TestPlanCaseGroup {
+    id: string
+    name: string
+  }
+
   // MQTT 5 feature
   interface ClientPropertiesModel {
     sessionExpiryInterval?: number | null

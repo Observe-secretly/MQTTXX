@@ -8,7 +8,7 @@
       }"
     >
       <div class="testplan-info">
-        <div class="topbar">测试计划分组</div>
+        <div class="topbar">{{ testplan.name }}</div>
       </div>
     </div>
 
@@ -20,8 +20,8 @@
       }"
     >
       <el-tabs class="tab" v-model="editableTabsValue" type="card" editable @edit="handleTabsEdit">
-        <el-tab-pane :key="item.name" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
-          {{ item.content }}
+        <el-tab-pane :key="item.id" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
+          {{ item.content.id }}
         </el-tab-pane>
       </el-tabs>
 
@@ -34,6 +34,7 @@
 import { Component, Vue, Watch } from 'vue-property-decorator'
 import { LeftValues } from '@/utils/styles'
 import _ from 'lodash'
+import { v4 as uuidv4 } from 'uuid'
 import { Action, Getter } from 'vuex-class'
 import useServices from '@/database/useServices'
 import { getDefaultRecord } from '@/utils/mqttUtils'
@@ -42,18 +43,35 @@ import { getDefaultRecord } from '@/utils/mqttUtils'
   components: {},
 })
 export default class TestPlanDetail extends Vue {
-  private mainTopValues = 68
+  private currentGroup: TestPlanCaseGroup = {
+    id: uuidv4(),
+    name: '新分类(1)',
+  }
+
+  /**
+   * 新建一个tab时，用于初始化currentGroup
+   * @param newTabName
+   */
+  private newTab(newTabName: string) {
+    this.currentGroup = {
+      id: uuidv4(),
+      name: newTabName,
+    }
+  }
 
   get leftValue(): string {
     return LeftValues.Show
   }
 
   get mainTopValue(): string {
-    return this.mainTopValues + 'px'
+    return 68 + 'px'
   }
 
+  /**
+   * 执行计划
+   */
   private testplan: TestplanModelTree = {
-    id: '123',
+    id: '',
     name: '',
     connection_id: '',
     protocol_version: '',
@@ -62,37 +80,83 @@ export default class TestPlanDetail extends Vue {
     resp_timeout: 3,
     retry_num: 0,
   }
-  private name: string = 'limin'
 
+  /**
+   * 列表页点击时传入的执行计划数据
+   * @param testplan
+   */
   public async loadData(testplan: TestplanModelTree) {
     this.testplan = testplan
-    console.log()
   }
 
-  editableTabsValue = '2'
+  /**
+   * 创建一个空的测试用例
+   */
+  private defaultCase(): TestPlanCase {
+    return {
+      id: uuidv4(),
+      group_id: this.currentGroup.id,
+      planId: this.testplan.id,
+      name: '',
+      sendPayload: '',
+      expectPayload: '',
+      responsePayload: '',
+      result: '',
+    }
+  }
+  /**
+   * Tab页初始化数据 Start
+   */
+  editableTabsValue = ''
   editableTabs = [
     {
-      title: 'Tab 1',
-      name: '1',
-      content: 'Tab 1 content',
-    },
-    {
-      title: 'Tab 2',
-      name: '2',
-      content: 'Tab 2 content',
+      title: '',
+      name: '',
+      content: [
+        {
+          id: '',
+          group_id: '',
+          planId: '',
+          name: '',
+          sendPayload: '',
+          expectPayload: '',
+          responsePayload: '',
+          result: '',
+        },
+      ],
     },
   ]
-  tabIndex = 2
+  tabIndex: any = 1
+  //Tab页初始化数据 End
 
+  mounted() {
+    // 在组件挂载后初始化tabs
+    this.editableTabsValue = this.currentGroup.name
+    this.editableTabs = [
+      {
+        title: this.currentGroup.name,
+        name: this.currentGroup.name,
+        content: [this.defaultCase()],
+      },
+    ]
+  }
+
+  /**
+   * tabs新增和删除事件
+   * @param targetName
+   * @param action
+   */
   private handleTabsEdit(targetName: string, action: string) {
     if (action === 'add') {
-      let newTabName = ++this.tabIndex + ''
+      let newTabName = '新分类(' + ++this.tabIndex + ')'
+      this.newTab(newTabName)
       this.editableTabs.push({
-        title: 'New Tab',
-        name: newTabName,
-        content: 'New Tab content',
+        title: this.currentGroup.name,
+        name: this.currentGroup.name,
+        content: [this.defaultCase()],
       })
       this.editableTabsValue = newTabName
+      console.log(this.editableTabsValue)
     }
     if (action === 'remove') {
       let tabs = this.editableTabs
