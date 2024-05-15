@@ -2,7 +2,7 @@
   <div class="testplan">
     <transition name="slide">
       <div class="left-list">
-        <TestPlanList ref="testplanListRef" :show-detail="showDetail" />
+        <TestPlanList ref="testplanListRef" :create-plan="toCreatePlan" :show-detail="showDetail" />
       </div>
     </transition>
     <div class="testplan-view">
@@ -47,25 +47,36 @@ export default class TestPlan extends Vue {
   private toCreatePlan() {
     this.isEmpty = false
     this.isCreatePlan = true
+    this.isShowDetail = false
   }
 
   /**
    * 创建/修改表单页面返回
    */
   private formHandleBack(isReload: boolean) {
-    this.isEmpty = true
     this.isCreatePlan = false
     if (this.$refs.testplanListRef) {
       const testplanList = this.$refs.testplanListRef as TestPlanList
       testplanList.refreshTree()
     }
+
+    //如果选择了测试计划则展示详情，否则展示empty页面
+    if (this.currentTestplan != null) {
+      this.showDetail(this.currentTestplan)
+      //TODO 重新让Tree默认选中的逻辑
+    } else {
+      this.isEmpty = true
+    }
   }
+
+  private currentTestplan: TestplanModelTree | null = null
 
   /**
    * 展示测试计划详情
    * @param testplanId  测试计划ID
    */
   private showDetail(testplan: TestplanModelTree) {
+    this.currentTestplan = testplan
     this.isEmpty = false
     this.isShowDetail = true
     if (this.$refs.testplanDetailRef) {

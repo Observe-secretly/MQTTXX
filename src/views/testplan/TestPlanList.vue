@@ -4,6 +4,9 @@
       <h1 class="testplan-titlebar">{{ $t('testplan.testPlanTitle') }}</h1>
       <div class="testplan-tailbar">
         <!-- 添加按钮和收起按钮 -->
+        <a href="javascript:;" class="new-button">
+          <i class="iconfont icon-create-new" @click="createPlan"></i>
+        </a>
       </div>
     </div>
     <div class="testplan-list">
@@ -34,17 +37,10 @@
             >
               <div class="item-left">
                 <div class="client-info">
-                  <!-- <el-tooltip
-                     :effect="theme !== 'light' ? 'light' : 'dark'"
-                     :content="`${data.name}(${data.payload_type})`"
-                     :open-delay="500"
-                     placement="top"
-                   > -->
                   <div :class="['client-name']">
                     {{ data.name }}
                     <el-tag style="float: right; margin-right: 8px">{{ data.payload_type }}</el-tag>
                   </div>
-                  <!-- </el-tooltip> -->
                 </div>
               </div>
             </div>
@@ -67,6 +63,8 @@
 </template>
 
 <script lang="ts">
+// import { Table,TableColumn } from 'element-ui';
+import 'element-ui/lib/theme-chalk/table.css'
 import { Component, Vue, Prop } from 'vue-property-decorator'
 import { Getter, Action } from 'vuex-class'
 import Contextmenu from '@/components/Contextmenu.vue'
@@ -80,6 +78,9 @@ import useServices from '@/database/useServices'
 import time from '@/utils/time'
 import getContextmenuPosition from '@/utils/getContextmenuPosition'
 
+// Vue.component(Table.name, Table);
+// Vue.component(TableColumn.name, TableColumn);
+
 @Component({
   components: {
     Contextmenu,
@@ -87,6 +88,7 @@ import getContextmenuPosition from '@/utils/getContextmenuPosition'
 })
 export default class TestPlanList extends Vue {
   @Prop() public showDetail!: <T>(testplan: TestplanModelTree) => T | void
+  @Prop() public createPlan!: <T>() => T | void
   @Getter('currentTheme') private theme!: Theme
 
   private isLoadingData: boolean = false

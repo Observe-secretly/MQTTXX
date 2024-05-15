@@ -113,4 +113,11 @@ export default {
     tr: '',
     hu: '',
   },
+  add_case_row: {
+    zh: '添加一行',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
 }

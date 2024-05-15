@@ -7,25 +7,52 @@
         left: leftValue,
       }"
     >
-      <div class="testplan-info">
-        <div class="topbar">{{ testplan.name }}</div>
-      </div>
+      <h2>
+        <span class="title-name">{{ testplan.name }}</span>
+      </h2>
     </div>
 
-    <div
-      class="testplan-detail-main"
-      :style="{
-        paddingTop: mainTopValue,
-        marginLeft: leftValue,
-      }"
-    >
-      <el-tabs class="tab" v-model="editableTabsValue" type="card" editable @edit="handleTabsEdit">
-        <el-tab-pane :key="item.id" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
-          {{ item.content.id }}
-        </el-tab-pane>
-      </el-tabs>
+    <el-card>
+      <div
+        class="testplan-detail-main"
+        :style="{
+          paddingTop: mainTopValue,
+          marginLeft: leftValue,
+        }"
+      >
+        <el-tabs class="tab" v-model="editableTabsValue" type="card" editable @edit="handleTabsEdit">
+          <el-tab-pane :key="item.id" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
+            <!-- Table start -->
+            <el-table :data="item.content" stripe style="width: 100%">
+              <el-table-column prop="name" label="名称"> </el-table-column>
+              <el-table-column prop="sendPayload" label="发送"> </el-table-column>
+              <el-table-column prop="expectPayload" label="预期"> </el-table-column>
+              <el-table-column prop="responsePayload" label="响应"> </el-table-column>
+              <el-table-column prop="result" label="结果"> </el-table-column>
+            </el-table>
 
-      <div ref="connectionFooter" class="testplan-footer" :style="{ marginLeft: leftValue }">footer</div>
+            <!-- Add Row Button -->
+            <el-row :gutter="20" class="new-button-row">
+              <el-col :span="24">
+                <el-button
+                  class="btn new-subs-btn"
+                  icon="el-icon-plus"
+                  plain
+                  type="outline"
+                  size="mini"
+                  @click="addRow"
+                >
+                  {{ $t('testplan.add_case_row') }}
+                </el-button>
+              </el-col>
+            </el-row>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+    </el-card>
+
+    <div ref="connectionFooter" class="testplan-footer" :style="{ marginLeft: leftValue }">
+      <el-card> Test </el-card>
     </div>
   </div>
 </template>
@@ -52,7 +79,12 @@ export default class TestPlanDetail extends Vue {
    * 新建一个tab时，用于初始化currentGroup
    * @param newTabName
    */
-  private newTab(newTabName: string) {
+  private newTab() {
+    let newTabName = '新分类(' + ++this.tabIndex + ')'
+    this.newTabForName(newTabName)
+  }
+
+  private newTabForName(newTabName: string) {
     this.currentGroup = {
       id: uuidv4(),
       name: newTabName,
@@ -64,7 +96,7 @@ export default class TestPlanDetail extends Vue {
   }
 
   get mainTopValue(): string {
-    return 68 + 'px'
+    return 32 + 'px'
   }
 
   /**
@@ -129,18 +161,6 @@ export default class TestPlanDetail extends Vue {
   tabIndex: any = 1
   //Tab页初始化数据 End
 
-  mounted() {
-    // 在组件挂载后初始化tabs
-    this.editableTabsValue = this.currentGroup.name
-    this.editableTabs = [
-      {
-        title: this.currentGroup.name,
-        name: this.currentGroup.name,
-        content: [this.defaultCase()],
-      },
-    ]
-  }
-
   /**
    * tabs新增和删除事件
    * @param targetName
@@ -149,7 +169,7 @@ export default class TestPlanDetail extends Vue {
   private handleTabsEdit(targetName: string, action: string) {
     if (action === 'add') {
       let newTabName = '新分类(' + ++this.tabIndex + ')'
-      this.newTab(newTabName)
+      this.newTabForName(newTabName)
       this.editableTabs.push({
         title: this.currentGroup.name,
         name: this.currentGroup.name,
@@ -176,6 +196,44 @@ export default class TestPlanDetail extends Vue {
       this.editableTabs = tabs.filter((tab) => tab.name !== targetName)
     }
   }
+
+  private addRow() {
+    // 根据 this.currentGroup.name 找到对应的 tab
+    const tab = this.editableTabs.find((tab) => tab.name === this.currentGroup.name)
+    if (tab) {
+      // 在 content 中增加一个 this.defaultCase()
+      tab.content.push(this.defaultCase())
+    } else {
+      console.error(`Tab with name ${this.currentGroup.name} not found`)
+    }
+  }
+
+  private removeRow() {
+    // 根据 this.currentGroup.name 找到对应的 tab
+    const tab = this.editableTabs.find((tab) => tab.name === this.currentGroup.name)
+    if (tab) {
+      // 从 content 中删除最后一个元素
+      if (tab.content.length > 0) {
+        tab.content.pop()
+      } else {
+        console.error(`No rows to remove in tab with name ${this.currentGroup.name}`)
+      }
+    } else {
+      console.error(`Tab with name ${this.currentGroup.name} not found`)
+    }
+  }
+
+  mounted() {
+    // 在组件挂载后初始化tabs
+    this.editableTabsValue = this.currentGroup.name
+    this.editableTabs = [
+      {
+        title: this.currentGroup.name,
+        name: this.currentGroup.name,
+        content: [this.defaultCase()],
+      },
+    ]
+  }
 }
 </script>
 
@@ -184,7 +242,15 @@ export default class TestPlanDetail extends Vue {
 
 .testplan-detail {
   .testplan-topbar {
-    border-bottom: 1px solid var(--color-border-default);
+    margin: 20px 0px 20px 20px;
+    h2 .title-name {
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: 12px;
+      color: var(--color-text-light);
+    }
     .testplan-info {
       background-color: var(--color-bg-normal);
       .topbar {
@@ -233,19 +299,20 @@ export default class TestPlanDetail extends Vue {
     .testplan-body {
       position: relative;
     }
-    .testplan-footer {
-      transition: all 0.4s ease;
-      position: fixed;
-      width: inherit;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 3;
-    }
   }
-}
 
-.tab {
-  margin: 0px 16px 0 16px;
+  .testplan-footer {
+    transition: all 0.4s ease;
+    position: fixed;
+    width: inherit;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 3;
+  }
+
+  .new-button-row {
+    margin-top: 16px;
+  }
 }
 </style>
