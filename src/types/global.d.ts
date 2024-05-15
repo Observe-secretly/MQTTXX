@@ -279,7 +279,7 @@ declare global {
   }
   type TestplanModelTree = TestplanModel
 
-  interface TestPlanCase {
+  interface TestPlanCaseModel {
     id: string
     group_id: string
     planId: string
@@ -290,9 +290,10 @@ declare global {
     result: string
   }
 
-  interface TestPlanCaseGroup {
-    id: string
+  interface TestPlanCaseGroupModel {
+    label: string
     name: string
+    plan_id: string
   }
 
   // MQTT 5 feature

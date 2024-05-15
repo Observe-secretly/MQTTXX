@@ -10,6 +10,8 @@ import MessageService from './services/MessageService'
 import ScriptService from './services/ScriptService'
 import CopilotService from './services/CopilotService'
 import TestPlanService from './services/TestPlanService'
+import TestPlanCaseGroupService from './services/TestPlanCaseGroupService'
+import TestPlanCaseService from './services/TestPlanCaseService'
 
 export default function useServices() {
   const connectionService = Container.get(ConnectionService)
@@ -23,6 +25,8 @@ export default function useServices() {
   const scriptService = Container.get(ScriptService)
   const copilotService = Container.get(CopilotService)
   const testPlanService = Container.get(TestPlanService)
+  const testPlanCaseGroupService = Container.get(TestPlanCaseGroupService)
+  const testPlanCaseService = Container.get(TestPlanCaseService)
 
   return {
     connectionService,
@@ -36,5 +40,7 @@ export default function useServices() {
     scriptService,
     copilotService,
     testPlanService,
+    testPlanCaseGroupService,
+    testPlanCaseService,
   }
 }
