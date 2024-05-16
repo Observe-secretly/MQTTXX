@@ -28,7 +28,7 @@
           @edit="handleTabsEdit"
           @tab-click="handleTabsClick"
         >
-          <el-tab-pane :key="item.id" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
+          <el-tab-pane :key="item.name" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
             <!-- Table start -->
             <ag-grid-vue
               class="ag-theme-alpine"
@@ -95,16 +95,62 @@ import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
   },
 })
 export default class TestPlanDetail extends Vue {
+  private printTab() {
+    console.log(this.currentTabGroup.name)
+    this.editableTabs.forEach((tab, index) => {
+      console.log(tab.name + '<-->' + tab.title)
+    })
+  }
+
   /**
    * 列表页点击时传入的执行计划数据
    * @param testplan
    */
   public async loadData(testplan: TestplanModelTree) {
+    this.editableTabsValue = ''
+    this.editableTabs = []
     this.testplan = testplan
-    this.currentTabGroup = {
-      label: this.$tc('testplan.new_tab_name'),
-      name: uuidv4(),
-      plan_id: testplan.id,
+    if (testplan == null || testplan == undefined || testplan.id == null || testplan.id == undefined) {
+      this.$notify({
+        title: this.$tc('testplan.sys_error'),
+        message: '',
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+      return
+    }
+
+    //查询所有tab组
+    const { testPlanCaseGroupService } = useServices()
+    const tabs: TestPlanCaseGroupModel[] = (await testPlanCaseGroupService.getByPlanId(testplan.id)) ?? []
+    if (tabs.length > 0) {
+      this.currentTabGroup = tabs[0]
+      this.editableTabsValue = this.currentTabGroup.name
+      tabs.forEach((tab, index) => {
+        this.editableTabs.push({
+          title: tab.label,
+          name: tab.name,
+          content: [this.defaultCase()],
+        })
+      })
+    } else {
+      // 如果一个都没有则创建一个
+      this.currentTabGroup = {
+        label: this.$tc('testplan.new_tab_name'),
+        name: uuidv4(),
+        plan_id: testplan.id,
+      }
+
+      this.dbAddTab(this.currentTabGroup)
+      this.editableTabsValue = this.currentTabGroup.name
+      this.editableTabs = [
+        {
+          title: this.currentTabGroup.label,
+          name: this.currentTabGroup.name,
+          content: [this.defaultCase()],
+        },
+      ]
     }
   }
 
@@ -185,6 +231,7 @@ export default class TestPlanDetail extends Vue {
       ],
     },
   ]
+
   //Tab页初始化数据 End
 
   /**
@@ -193,7 +240,6 @@ export default class TestPlanDetail extends Vue {
    * @param action
    */
   private async handleTabsEdit(targetName: string, action: string) {
-    const { testPlanCaseGroupService } = useServices()
     if (action === 'add') {
       this.newTab()
       this.editableTabs.push({
@@ -202,28 +248,8 @@ export default class TestPlanDetail extends Vue {
         content: [this.defaultCase()],
       })
       this.editableTabsValue = this.currentTabGroup.name
-
       //添加到数据库中
-      let res: TestPlanCaseGroupModel | undefined = undefined
-      try {
-        res = await testPlanCaseGroupService.create(this.currentTabGroup)
-        this.$log.info(`Created testPlanCaseGroupService for the : ${res?.name}, label: ${res?.label}`)
-        this.$notify({
-          title: this.$tc('common.createSuccess'),
-          message: '',
-          type: 'success',
-          duration: 3000,
-          offset: 30,
-        })
-      } catch (error) {
-        this.$notify({
-          title: this.$tc('common.createfailed'),
-          message: `${error.toString()}`,
-          type: 'error',
-          duration: 3000,
-          offset: 30,
-        })
-      }
+      this.dbAddTab(this.currentTabGroup)
     }
     if (action === 'remove') {
       let delId: string = this.editableTabsValue
@@ -246,30 +272,67 @@ export default class TestPlanDetail extends Vue {
       this.editableTabsValue = activeName
 
       //从数据库删除
-      let res: TestPlanCaseGroupModel | undefined = undefined
-      try {
-        res = await testPlanCaseGroupService.delete(delId)
-        this.$log.info(`Created testPlanCaseGroupService for the : ${res?.name}, label: ${res?.label}`)
-        this.$notify({
-          title: this.$tc('common.deleteSuccess'),
-          message: '',
-          type: 'success',
-          duration: 3000,
-          offset: 30,
-        })
-      } catch (error) {
-        this.$notify({
-          title: this.$tc('common.deletefailed'),
-          message: `${error.toString()}`,
-          type: 'error',
-          duration: 3000,
-          offset: 30,
-        })
-      }
+      this.dbDelTab(delId)
     }
 
     // 在tab发生改变的时候修改当前的Tab
     this.resetCurrentTab()
+  }
+
+  /**
+   * 添加新的tab到数据库
+   * @param addTab
+   */
+  private async dbAddTab(addTab: TestPlanCaseGroupModel) {
+    const { testPlanCaseGroupService } = useServices()
+    let res: TestPlanCaseGroupModel | undefined = undefined
+    try {
+      res = await testPlanCaseGroupService.create(addTab)
+      this.$log.info(`Created testPlanCaseGroupService for the : ${res?.name}, label: ${res?.label}`)
+      this.$notify({
+        title: this.$tc('testplan.create_case_group_successed'),
+        message: '',
+        type: 'success',
+        duration: 3000,
+        offset: 30,
+      })
+    } catch (error) {
+      this.$notify({
+        title: this.$tc('testplan.createfailed'),
+        message: `${error.toString()}`,
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+    }
+  }
+
+  /**
+   * 从数据库删除tab
+   * @param id
+   */
+  private async dbDelTab(id: string) {
+    const { testPlanCaseGroupService } = useServices()
+    let res: TestPlanCaseGroupModel | undefined = undefined
+    try {
+      res = await testPlanCaseGroupService.delete(id)
+      this.$log.info(`Created testPlanCaseGroupService for the : ${res?.name}, label: ${res?.label}`)
+      this.$notify({
+        title: this.$tc('testplan.delete_case_group_successed'),
+        message: '',
+        type: 'success',
+        duration: 3000,
+        offset: 30,
+      })
+    } catch (error) {
+      this.$notify({
+        title: this.$tc('testplan.deletefailed'),
+        message: `${error.toString()}`,
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+    }
   }
 
   private resetCurrentTab() {
@@ -361,18 +424,6 @@ export default class TestPlanDetail extends Vue {
    */
   private savePlanDetail() {
     console.log(this.editableTabs[0].content[0])
-  }
-
-  mounted() {
-    // 在组件挂载后初始化tabs
-    this.editableTabsValue = this.currentTabGroup.name
-    this.editableTabs = [
-      {
-        title: this.currentTabGroup.label,
-        name: this.currentTabGroup.name,
-        content: [this.defaultCase()],
-      },
-    ]
   }
 }
 </script>

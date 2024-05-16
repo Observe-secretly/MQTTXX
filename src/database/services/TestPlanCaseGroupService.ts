@@ -15,16 +15,16 @@ export default class TestPlanCaseGroupService {
 
   public static entityToModel(data: TestPlanCaseGroupEntity): TestPlanCaseGroupModel {
     return {
-      label: data.id,
-      name: data.name,
+      name: data.id,
+      label: data.name,
       plan_id: data.plan_id,
     } as TestPlanCaseGroupModel
   }
 
   public static modelToEntity(data: TestPlanCaseGroupModel): TestPlanCaseGroupEntity {
     return {
-      id: data.label,
-      name: data.name,
+      id: data.name,
+      name: data.label,
       plan_id: data.plan_id,
     } as TestPlanCaseGroupEntity
   }
@@ -35,6 +35,11 @@ export default class TestPlanCaseGroupService {
       return TestPlanCaseGroupService.entityToModel(entity)
     }
     return undefined
+  }
+
+  public async getByPlanId(planId: string): Promise<TestPlanCaseGroupModel[]> {
+    const entities = await this.testPlanCaseGroupEntity.find({ where: { plan_id: planId } })
+    return entities.map(TestPlanCaseGroupService.entityToModel)
   }
 
   public async getAll() {

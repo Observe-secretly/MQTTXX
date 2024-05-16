@@ -169,4 +169,25 @@ export default {
     tr: '',
     hu: '',
   },
+  sys_error: {
+    zh: '系统异常',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
+  create_case_group_successed: {
+    zh: '创建分组成功',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
+  delete_case_group_successed: {
+    zh: '删除分组成功',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
 }
