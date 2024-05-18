@@ -246,4 +246,11 @@ export default {
     tr: '',
     hu: '',
   },
+  connect_info_invalidate: {
+    zh: '连接信息已经失效，请在连接页面确认',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
 }

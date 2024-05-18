@@ -88,6 +88,8 @@ import getContextmenuPosition from '@/utils/getContextmenuPosition'
 })
 export default class TestPlanList extends Vue {
   @Prop() public showDetail!: <T>(testplan: TestplanModelTree) => T | void
+  @Prop() public showEmpty!: <T>(isClear: boolean) => T | void
+
   @Prop() public createPlan!: <T>() => T | void
   @Getter('currentTheme') private theme!: Theme
 
@@ -152,6 +154,9 @@ export default class TestPlanList extends Vue {
     this.selectedTestplan = row
   }
 
+  /**
+   * 删除执行计划
+   */
   private async handleDelete() {
     if (this.selectedTestplan != null && this.selectedTestplan.id != null) {
       const id = this.selectedTestplan.id
@@ -174,6 +179,9 @@ export default class TestPlanList extends Vue {
           duration: 3000,
           offset: 30,
         })
+
+        //主页面显示空白页
+        this.showEmpty(true)
       } catch (error) {
         this.$notify({
           title: this.$tc('common.deletefailed'),

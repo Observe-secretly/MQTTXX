@@ -46,20 +46,11 @@
             </el-row>
             <!-- Add Row Button -->
             <el-row :gutter="20" class="new-button-row">
-              <el-col :span="12">
-                <el-button plain icon="el-icon-upload" type="outline" size="mini" @click="savePlanDetail">
+              <el-col :span="24">
+                <el-button icon="el-icon-upload" type="primary" size="mini" @click="savePlanDetail">
                   {{ $t('common.save') }}
                 </el-button>
-              </el-col>
-              <el-col :span="12" style="text-align: right">
-                <el-button
-                  class="btn new-subs-btn"
-                  icon="el-icon-plus"
-                  plain
-                  type="outline"
-                  size="mini"
-                  @click="addCase"
-                >
+                <el-button class="btn new-subs-btn" icon="el-icon-plus" type="outline" size="mini" @click="addCase">
                   {{ $t('testplan.add_case_row') }}
                 </el-button>
               </el-col>
@@ -73,7 +64,10 @@
       <el-card>
         <el-row :gutter="20">
           <el-col :span="24">
-            <el-button plain type="outline"> {{ $t('testplan.run_testplan') }}</el-button>
+            <!-- 运行测试计划 -->
+            <el-button type="primary" icon="el-icon-caret-right" @click="runTestPlan">
+              {{ $t('testplan.run_testplan') }}</el-button
+            >
           </el-col>
         </el-row>
       </el-card>
@@ -91,7 +85,13 @@ import useServices from '@/database/useServices'
 import { AgGridVue } from 'ag-grid-vue'
 import 'ag-grid-community/dist/styles/ag-grid.css'
 import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
-import { use } from 'chai'
+
+import { MqttClient, IConnackPacket, IPublishPacket, IClientPublishOptions, IDisconnectPacket, Packet } from 'mqtt'
+import { createClient } from '@/utils/mqttUtils'
+import getErrorReason from '@/utils/mqttErrorReason'
+import { Subject, fromEvent } from 'rxjs'
+import { bufferTime, map, filter, takeUntil } from 'rxjs/operators'
+import cbor from 'cbor'
 
 @Component({
   components: {
@@ -541,6 +541,304 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
+  private async runTestPlan() {
+    // this.editableTabs
+    const { connectionService } = useServices()
+    //1、查询mqtt连接详情
+    let connection: ConnectionModel | undefined = await connectionService.get(this.testplan.connection_id)
+    if (connection == null || connection == undefined) {
+      this.$notify({
+        title: this.$tc('connections.connectFailed'),
+        message: this.$tc('testplan.connect_info_invalidate'),
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+      return
+    }
+    this.connectionModel = connection
+    //2、尝试获取连接
+    this.connect(this.connectionModel)
+    //3、循环发送所有case。等待响应
+    //4、对比预期结果（中途收到预期外的结果不予理会）
+    //5、渲染报告和列表
+  }
+
+  private client: Partial<MqttClient> = {
+    connected: false,
+    options: {},
+  }
+  private connectionModel!: ConnectionModel
+  private connectLoading = false
+  private disconnectLoding = false
+  private reTryConnectTimes = 0
+  private curConnectionId!: string
+  private sendFrequency: number | undefined = undefined
+  private sendTimeId: number | null = null
+  private sendTimedMessageCount = 0
+  private maxReconnectTimes!: number
+
+  // Connect
+  public async connect(connection: ConnectionModel): Promise<boolean | void> {
+    if (this.client.connected || this.connectLoading) {
+      return false
+    }
+    this.connectLoading = true
+    // new client
+    try {
+      const { curConnectClient, connectUrl } = await createClient(connection)
+      debugger
+      this.client = curConnectClient
+      const { name, id } = connection
+      if (id && this.client.on) {
+        this.$log.info(`Assigned ID ${id} to MQTTX client`)
+        this.client.on('connect', this.onConnect)
+        this.client.on('error', this.onError)
+        this.client.on('reconnect', this.onReConnect)
+        this.client.on('disconnect', this.onDisconnect)
+        this.client.on('offline', this.onOffline)
+        // this.onMessageArrived(this.client as MqttClient, id)
+        // Debug MQTT Packet Log
+        this.client.on('packetsend', (packet) => this.onPacketSent(packet, name))
+        this.client.on('packetreceive', (packet) => this.onPacketReceived(packet, name))
+      }
+
+      const protocolLogMap: ProtocolMap = {
+        mqtt: 'MQTT/TCP connection',
+        mqtts: 'MQTT/SSL connection',
+        ws: 'MQTT/WS connection',
+        wss: 'MQTT/WSS connection',
+      }
+      const curOptionsProtocol: Protocol = (this.client as MqttClient).options.protocol as Protocol
+      let connectLog = `Client ${connection.name} connected using ${protocolLogMap[curOptionsProtocol]} at ${connectUrl}`
+      this.$log.info(connectLog)
+    } catch (error) {
+      const err = error as Error
+      this.connectLoading = false
+      // this.notifyMsgWithCopilot(err.toString())
+    }
+  }
+
+  // Disconnect
+  private disconnect(): boolean | void {
+    if (!this.client.connected || this.disconnectLoding) {
+      return false
+    }
+    this.stopTimedSend()
+    this.disconnectLoding = true
+    this.client.end!(false, () => {
+      this.disconnectLoding = false
+      this.reTryConnectTimes = 0
+
+      // this.changeActiveConnection({
+      //   id: this.curConnectionId,
+      //   client: this.client,
+      // })
+      this.$notify({
+        title: this.$tc('connections.disconnected'),
+        message: '',
+        type: 'success',
+        duration: 3000,
+        offset: 30,
+      })
+      // if (!this.showClientInfo) {
+      //   this.setShowClientInfo(true)
+      // }
+      this.$log.info(
+        `MQTTX client named ${this.connectionModel.name} with client ID ${this.connectionModel.clientId} disconnected`,
+      )
+    })
+  }
+
+  // Connect callback
+  private onConnect(conBack: IConnackPacket) {
+    this.connectLoading = false
+
+    // this.changeActiveConnection({
+    //   id: this.curConnectionId,
+    //   client: this.client,
+    // })
+    this.$notify({
+      title: this.$tc('connections.connected'),
+      message: '',
+      type: 'success',
+      duration: 3000,
+      offset: 30,
+    })
+    // this.setShowClientInfo(false)
+    // this.$emit('reload', false, false, this.handleReSubTopics)
+    this.$log.info(`Successful connection for ${this.connectionModel.name}, MQTT.js onConnect trigger`)
+  }
+
+  // Error callback
+  private onError(error: Error) {
+    let msgTitle = this.$tc('connections.connectFailed')
+    if (error) {
+      msgTitle = error.toString()
+    }
+    this.forceCloseTheConnection()
+    // this.notifyMsgWithCopilot(msgTitle)
+    this.$log.error(
+      `Connection for ${this.connectionModel.name} failed, MQTT.js onError trigger, Error: ${error.stack}`,
+    )
+    // this.$emit('reload')
+  }
+
+  // Reconnect callback
+  private onReConnect() {
+    if (!this.connectionModel.reconnect) {
+      this.forceCloseTheConnection()
+      this.$notify({
+        title: this.$tc('connections.connectFailed'),
+        message: '',
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+      // this.$emit('reload')
+    } else {
+      if (this.reTryConnectTimes > this.maxReconnectTimes) {
+        this.$log.warn('Max reconnect limit reached, stopping retries')
+        this.forceCloseTheConnection()
+      } else {
+        this.$log.info(`Retrying connection for ${this.connectionModel.name}, attempt: ${this.reTryConnectTimes}`)
+        this.reTryConnectTimes += 1
+        this.connectLoading = true
+        this.$notify({
+          title: this.$tc('connections.reconnect'),
+          message: '',
+          type: 'warning',
+          duration: 3000,
+          offset: 30,
+        })
+      }
+    }
+  }
+
+  private onDisconnect(packet: IDisconnectPacket) {
+    const reasonCode = packet.reasonCode!
+    const reason = reasonCode === 0 ? 'Normal disconnection' : getErrorReason('5.0', reasonCode)
+    // this.notifyMsgWithCopilot(
+    //   this.$t('connections.onDisconnect', { reason, reasonCode }) as string,
+    //   JSON.stringify(packet),
+    //   () => {},
+    //   'warning',
+    // )
+    const logMessage = 'Received disconnect packet from Broker. MQTT.js onDisconnect trigger'
+    this.$log.warn(logMessage)
+  }
+
+  private onOffline() {
+    this.$log.info(
+      `The connection ${this.connectionModel.name} (clientID ${this.connectionModel.clientId}) is offline. MQTT.js onOffline trigger`,
+    )
+  }
+
+  /**
+   * Handles the event when a packet is sent.
+   * @param {Packet} packet - The packet that was sent.
+   * @param {string} name - The name of the connection.
+   */
+  private onPacketSent(packet: Packet, name: string) {
+    this.$log.debug(`[${name}] Sent packet: ${JSON.stringify(packet)}`)
+  }
+
+  /**
+   * Handles the event when a packet is received.
+   *
+   * @param {Packet} packet - The received packet.
+   * @param {string} name - The name of the connection.
+   */
+  private onPacketReceived(packet: Packet, name: string) {
+    this.$log.debug(`[${name}] Received packet: ${JSON.stringify(packet)}`)
+  }
+
+  public stopTimedSend() {
+    // const timedMessageRef: TimedMessage = this.$refs.timedMessage as TimedMessage
+    // timedMessageRef['record'] = {
+    //   sendFrequency: undefined,
+    // }
+    this.sendFrequency = undefined
+    this.sendTimedMessageCount = 0
+    if (this.sendTimeId) {
+      clearInterval(this.sendTimeId)
+      this.sendTimeId = null
+      this.$message.success(this.$tc('connections.stopTimedMessage'))
+      this.$log.info(`Timed messages sending stopped for ${this.connectionModel.name}`)
+    }
+  }
+  private forceCloseTheConnection() {
+    if (this.client.end) {
+      this.client.end(true, () => {
+        this.reTryConnectTimes = 0
+        this.connectLoading = false
+        this.$log.warn(
+          `MQTTX force closed the connection ${this.connectionModel.name} (Client ID: ${this.connectionModel.clientId})`,
+        )
+      })
+    }
+  }
+
+  private onClose() {
+    this.$log.info(`Connection for ${this.connectionModel.name} closed, MQTT.js onClose trigger`)
+    this.connectLoading = false
+  }
+
+  /**
+    
+   
+
+    // Recevied message
+  private onMessageArrived(client: MqttClient, id: string) {
+    const unsubscribe$ = new Subject()
+
+    if (client.listenerCount('close') <= 1) {
+      fromEvent(client, 'close').subscribe(() => {
+        unsubscribe$.next()
+        unsubscribe$.complete()
+        this.onClose()
+      })
+    }
+
+    const messageSubject$ = fromEvent(client, 'message').pipe(takeUntil(unsubscribe$))
+
+    const processMessageSubject$ = messageSubject$.pipe(
+      map(([topic, payload, packet]: [string, Buffer, IPublishPacket]) => {
+        return this.processReceivedMessage(topic, payload, packet)
+      }),
+    )
+
+    const SYSMessageSubject$ = processMessageSubject$.pipe(
+      filter((m: MessageModel) => this.showBytes && id === this.curConnectionId && m.topic.includes('$SYS')),
+    )
+
+    const nonSYSMessageSubject$ = processMessageSubject$.pipe(
+      filter((m: MessageModel) => !(this.showBytes && id === this.curConnectionId && m.topic.includes('$SYS'))),
+    )
+
+    // Print message log
+    nonSYSMessageSubject$.subscribe((message: MessageModel) => {
+      this.printMessageLog(id, message)
+    })
+
+    // Render messages
+    nonSYSMessageSubject$.pipe(bufferTime(500)).subscribe((messages: MessageModel[]) => {
+      messages.length && this.renderMessage(id, messages)
+    })
+
+    // Save messages
+    nonSYSMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
+      messages.length && this.saveMessage(id, messages)
+    })
+
+    // Bytes statistics
+    SYSMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
+      this.bytesStatistics(messages)
+    })
+  }
+
+
+*/
   private mounted() {
     this.$el.addEventListener('click', this.handleDeleteButtonClick)
   }

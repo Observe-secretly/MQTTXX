@@ -2,7 +2,12 @@
   <div class="testplan">
     <transition name="slide">
       <div class="left-list">
-        <TestPlanList ref="testplanListRef" :create-plan="toCreatePlan" :show-detail="showDetail" />
+        <TestPlanList
+          ref="testplanListRef"
+          :create-plan="toCreatePlan"
+          :show-detail="showDetail"
+          :show-empty="showEmpty"
+        />
       </div>
     </transition>
     <div class="testplan-view">
@@ -41,6 +46,8 @@ export default class TestPlan extends Vue {
   private isCreatePlan: boolean = false
   private oper: 'edit' | 'create' | undefined = 'create'
 
+  private currentTestplan: TestplanModelTree | null = null
+
   /**
    * 创建测试计划页面的新建按钮点击事件
    */
@@ -69,8 +76,6 @@ export default class TestPlan extends Vue {
     }
   }
 
-  private currentTestplan: TestplanModelTree | null = null
-
   /**
    * 展示测试计划详情
    * @param testplanId  测试计划ID
@@ -82,6 +87,18 @@ export default class TestPlan extends Vue {
     if (this.$refs.testplanDetailRef) {
       const testplanDetail = this.$refs.testplanDetailRef as TestPlanDetail
       testplanDetail.loadData(testplan)
+    }
+  }
+
+  /**
+   * 现实空白页面
+   */
+  private showEmpty(isClear: boolean) {
+    this.isEmpty = true
+    this.isShowDetail = false
+    this.isCreatePlan = false
+    if (isClear) {
+      this.currentTestplan = null
     }
   }
 }

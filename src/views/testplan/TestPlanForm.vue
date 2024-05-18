@@ -55,13 +55,10 @@
             </el-col>
             <!-- 第二行 -->
             <el-col :span="22">
-              <el-form-item label-width="93px" :label="$t('testplan.select_connect')" prop="select_connect">
-                <el-select size="small" v-model="record.select_connect">
-                  <el-option
-                    v-for="item in connections"
-                    :key="item.id"
-                    :value="item.name + '@' + item.host + ':' + item.port + '(' + item.id + ')'"
-                  >
+              <el-form-item label-width="93px" :label="$t('testplan.select_connect')" prop="connection_id">
+                <el-select size="small" v-model="record.connection_id">
+                  <el-option v-for="item in connections" :key="item.id" :value="item.id">
+                    {{ item.name }}@{{ item.host }}:{{ item.port }}({{ item.id }})
                   </el-option>
                 </el-select>
               </el-form-item>
@@ -211,10 +208,14 @@ export default class TestPlanForm extends Vue {
       payload_type: [{ required: true, message: this.$t('common.inputRequired') }],
       resp_timeout: [{ required: true, message: this.$t('common.inputRequired') }],
       retry_num: [{ required: true, message: this.$t('common.inputRequired') }],
-      select_connect: [{ required: true, message: this.$t('common.inputRequired') }],
+      connection_id: [{ required: true, message: this.$t('common.inputRequired') }],
     }
   }
 
+  /**
+   * 创建/修改执行计划
+   * @param type
+   */
   private async handleSave(type: string) {
     const { testPlanService } = useServices()
     const data = { ...this.record }
