@@ -38,8 +38,8 @@
               <div class="item-left">
                 <div class="client-info">
                   <div :class="['client-name']">
-                    {{ data.name }}
-                    <el-tag style="float: right; margin-right: 8px">{{ data.payload_type }}</el-tag>
+                    <label>{{ data.name }}</label>
+                    <el-tag size="mini" style="float: right; margin-right: 16px">{{ data.payload_type }}</el-tag>
                   </div>
                 </div>
               </div>
@@ -156,9 +156,16 @@ export default class TestPlanList extends Vue {
     if (this.selectedTestplan != null && this.selectedTestplan.id != null) {
       const id = this.selectedTestplan.id
       const { testPlanService } = useServices()
+      const { testPlanCaseGroupService } = useServices()
+      const { testPlanCaseService } = useServices()
       try {
-        // 直接等待删除操作完成
+        // 删除执行计划
         await testPlanService.delete(id)
+        // 删除分组
+        await testPlanCaseGroupService.deleteByPlanId(id)
+        // 删除测试case
+        await testPlanCaseService.deleteByPlanId(id)
+
         this.refreshTree()
         this.$notify({
           title: this.$tc('common.deleteSuccess'),

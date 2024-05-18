@@ -61,4 +61,8 @@ export default class TestPlanCaseGroupService {
     }
     return undefined
   }
+
+  public async deleteByPlanId(planId: string): Promise<void> {
+    await this.testPlanCaseGroupEntity.delete({ plan_id: planId })
+  }
 }

@@ -36,27 +36,31 @@
               :columnDefs="columnDefs"
               :rowData="item.content"
               :defaultColDef="defaultColDef"
-              :gridOptions="gridOptions"
               @grid-ready="onGridReady"
             ></ag-grid-vue>
-
+            <!-- edit tips -->
+            <el-row :gutter="20">
+              <el-col :span="24">
+                <font color="#959595">{{ $t('testplan.edit_tab_tips') }}</font>
+              </el-col>
+            </el-row>
             <!-- Add Row Button -->
             <el-row :gutter="20" class="new-button-row">
               <el-col :span="12">
+                <el-button plain icon="el-icon-upload" type="outline" size="mini" @click="savePlanDetail">
+                  {{ $t('common.save') }}
+                </el-button>
+              </el-col>
+              <el-col :span="12" style="text-align: right">
                 <el-button
                   class="btn new-subs-btn"
                   icon="el-icon-plus"
                   plain
                   type="outline"
                   size="mini"
-                  @click="addRow"
+                  @click="addCase"
                 >
                   {{ $t('testplan.add_case_row') }}
-                </el-button>
-              </el-col>
-              <el-col :span="12" style="text-align: right">
-                <el-button plain icon="el-icon-upload" type="outline" size="mini" @click="savePlanDetail">
-                  {{ $t('common.save') }}
                 </el-button>
               </el-col>
             </el-row>
@@ -69,7 +73,7 @@
       <el-card>
         <el-row :gutter="20">
           <el-col :span="24">
-            <el-button @click="savePlanDetail"> {{ $t('common.save') }}</el-button>
+            <el-button plain type="outline"> {{ $t('testplan.run_testplan') }}</el-button>
           </el-col>
         </el-row>
       </el-card>
@@ -80,14 +84,14 @@
 <script lang="ts">
 import { Component, Vue, Watch } from 'vue-property-decorator'
 import { LeftValues } from '@/utils/styles'
-import _ from 'lodash'
+import _, { forEach } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 import { Action, Getter } from 'vuex-class'
 import useServices from '@/database/useServices'
-import { getDefaultRecord } from '@/utils/mqttUtils'
 import { AgGridVue } from 'ag-grid-vue'
 import 'ag-grid-community/dist/styles/ag-grid.css'
 import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
+import { use } from 'chai'
 
 @Component({
   components: {
@@ -95,22 +99,17 @@ import 'ag-grid-community/dist/styles/ag-theme-alpine.css'
   },
 })
 export default class TestPlanDetail extends Vue {
-  private printTab() {
-    console.log(this.currentTabGroup.name)
-    this.editableTabs.forEach((tab, index) => {
-      console.log(tab.name + '<-->' + tab.title)
-    })
-  }
-
   /**
    * 列表页点击时传入的执行计划数据
    * @param testplan
    */
-  public async loadData(testplan: TestplanModelTree) {
+  async loadData(testplan: TestplanModelTree) {
     this.editableTabsValue = ''
     this.editableTabs = []
     this.testplan = testplan
-    if (testplan == null || testplan == undefined || testplan.id == null || testplan.id == undefined) {
+
+    // 检查 testplan 是否有效
+    if (!testplan || !testplan.id) {
       this.$notify({
         title: this.$tc('testplan.sys_error'),
         message: '',
@@ -121,21 +120,25 @@ export default class TestPlanDetail extends Vue {
       return
     }
 
-    //查询所有tab组
+    // 查询所有tab组
     const { testPlanCaseGroupService } = useServices()
     const tabs: TestPlanCaseGroupModel[] = (await testPlanCaseGroupService.getByPlanId(testplan.id)) ?? []
+
     if (tabs.length > 0) {
       this.currentTabGroup = tabs[0]
       this.editableTabsValue = this.currentTabGroup.name
-      tabs.forEach((tab, index) => {
+
+      // 遍历所有的tab组，并获取相应的测试计划用例列表
+      for (const tab of tabs) {
+        const content = await this.getTestPlanCaseList(tab.name)
         this.editableTabs.push({
           title: tab.label,
           name: tab.name,
-          content: [this.defaultCase()],
+          content: content,
         })
-      })
+      }
     } else {
-      // 如果一个都没有则创建一个
+      // 如果一个都没有则创建一个新的tab组
       this.currentTabGroup = {
         label: this.$tc('testplan.new_tab_name'),
         name: uuidv4(),
@@ -152,6 +155,11 @@ export default class TestPlanDetail extends Vue {
         },
       ]
     }
+  }
+
+  private getTestPlanCaseList(id: string) {
+    const { testPlanCaseService } = useServices()
+    return testPlanCaseService.getByGroupId(id)
   }
 
   private currentTabGroup: TestPlanCaseGroupModel = {
@@ -358,11 +366,12 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
-  private addRow() {
+  /**
+   * 添加case
+   */
+  private addCase() {
     // 根据 this.currentGroup.name 找到对应的 tab
     const tab = this.editableTabs.find((tab) => tab.name === this.currentTabGroup.name)
-    console.log(this.editableTabs.length)
-    console.log(tab?.name)
     if (tab) {
       // 在 content 中增加一个 this.defaultCase()
       tab.content.push(this.defaultCase())
@@ -371,13 +380,23 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
-  private removeRow() {
+  /**
+   * 删除case
+   * @param id
+   */
+  private removeCase(id: any) {
     // 根据 this.currentGroup.name 找到对应的 tab
     const tab = this.editableTabs.find((tab) => tab.name === this.currentTabGroup.name)
     if (tab) {
-      // 从 content 中删除最后一个元素
+      // 从 content 中删除指定的元素(前端渲染)
       if (tab.content.length > 0) {
-        tab.content.pop()
+        for (let i = 0; i < tab.content.length; i++) {
+          if (tab.content[i].id === id) {
+            // 删除找到的行
+            tab.content.splice(i, 1)
+            break // 删除第一个匹配的行后跳出循环
+          }
+        }
       } else {
         console.error(`No rows to remove in tab with name ${this.currentTabGroup.name}`)
       }
@@ -387,15 +406,53 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
+   * 渲染删除case的删除按钮
+   */
+  private renderDeleteCaseButton(row: any) {
+    return `<a style="color:red;" href="#" class="delete-case-button" data-id="${row.data.id}">Delete</a>`
+  }
+
+  private handleDeleteButtonClick(event: any) {
+    if (event.target.classList.contains('delete-case-button')) {
+      event.preventDefault() // 阻止默认链接点击行为
+      const id = event.target.dataset.id
+      this.removeCase(id)
+    }
+  }
+
+  /**
    * 定义表格的头
    */
   private columnDefs = [
-    { headerName: this.$tc('testplan.id'), field: 'id', editable: false },
-    { headerName: this.$tc('testplan.head_name'), field: 'name', editable: true },
-    { headerName: this.$tc('testplan.head_send_payload'), field: 'sendPayload', editable: true },
-    { headerName: this.$tc('testplan.head_expect_payload'), field: 'expectPayload', editable: true },
-    { headerName: this.$tc('testplan.head_response_payload'), field: 'responsePayload', editable: false },
-    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false },
+    { headerName: this.$tc('testplan.id'), field: 'id', editable: false, maxWidth: 110 },
+    { headerName: this.$tc('testplan.head_name'), field: 'name', editable: true, minWidth: 100, maxWidth: 180 },
+    {
+      headerName: this.$tc('testplan.head_send_payload'),
+      field: 'sendPayload',
+      editable: true,
+      minWidth: 100,
+      maxWidth: 200,
+    },
+    {
+      headerName: this.$tc('testplan.head_expect_payload'),
+      field: 'expectPayload',
+      editable: true,
+      minWidth: 100,
+      maxWidth: 200,
+    },
+    {
+      headerName: this.$tc('testplan.head_response_payload'),
+      field: 'responsePayload',
+      editable: false,
+      minWidth: 200,
+    },
+    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 80 },
+    {
+      headerName: this.$tc('testplan.operation'),
+      cellRenderer: this.renderDeleteCaseButton,
+      editable: false,
+      maxWidth: 80,
+    },
   ]
 
   private defaultColDef = {
@@ -404,11 +461,6 @@ export default class TestPlanDetail extends Vue {
     flex: 1,
     minWidth: 100,
     filter: true,
-  }
-
-  private gridOptions = {
-    overlayNoRowsTemplate:
-      '<span style="padding: 10px; border: 1px solid #444; background: lightgoldenrodyellow;">No data available</span>',
   }
 
   private gridApi: any
@@ -423,7 +475,74 @@ export default class TestPlanDetail extends Vue {
    * 保存测试计划明细
    */
   private savePlanDetail() {
-    console.log(this.editableTabs[0].content[0])
+    //1、校验表格的名称、发送、预期数据不能为空
+    for (let i = 0; i < this.editableTabs.length; i++) {
+      const tab = this.editableTabs[i]
+      if (tab.name === this.currentTabGroup.name) {
+        if (tab.content.length == 0) return
+        for (let j = 0; j < tab.content.length; j++) {
+          const caseItem = tab.content[j]
+          if (caseItem.name === '' || caseItem.sendPayload === '' || caseItem.expectPayload === '') {
+            this.$notify({
+              title: this.$tc('testplan.case_info_incomplete'),
+              message: '',
+              type: 'error',
+              duration: 3000,
+              offset: 30,
+            })
+            return
+          }
+        }
+        break
+      }
+    }
+    //2、删除这个tab下的所有case
+    const { testPlanCaseService } = useServices()
+    try {
+      testPlanCaseService.deleteByGroupId(this.currentTabGroup.name)
+    } catch (error) {
+      this.$notify({
+        title: this.$tc('testplan.case_info_incomplete'),
+        message: `${error.toString()}`,
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+      return
+    }
+
+    //3、保存当前数据
+    try {
+      for (let i = 0; i < this.editableTabs.length; i++) {
+        const tab = this.editableTabs[i]
+        if (tab.name === this.currentTabGroup.name) {
+          for (let j = 0; j < tab.content.length; j++) {
+            const caseItem = tab.content[j]
+            testPlanCaseService.create(caseItem)
+          }
+          break // 找到匹配的 tab 后跳出外层循环
+        }
+      }
+      this.$notify({
+        title: this.$tc('testplan.save_case_successed'),
+        message: '',
+        type: 'success',
+        duration: 3000,
+        offset: 30,
+      })
+    } catch (error) {
+      this.$notify({
+        title: this.$tc('testplan.createfailed_case'),
+        message: `${error.toString()}`,
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+    }
+  }
+
+  private mounted() {
+    this.$el.addEventListener('click', this.handleDeleteButtonClick)
   }
 }
 </script>

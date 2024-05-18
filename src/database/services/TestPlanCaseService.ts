@@ -10,7 +10,7 @@ export default class TestPlanCaseService {
   constructor(
     // @ts-ignore
     @InjectRepository(TestPlanCaseEntity)
-    private testPlanCaseGroupEntity: Repository<TestPlanCaseEntity>,
+    private testPlanCaseEntity: Repository<TestPlanCaseEntity>,
   ) {}
 
   public static entityToModel(data: TestPlanCaseEntity): TestPlanCaseModel {
@@ -36,7 +36,7 @@ export default class TestPlanCaseService {
   }
 
   public async get(id: string): Promise<TestPlanCaseModel | undefined> {
-    const entity = await this.testPlanCaseGroupEntity.findOne(id)
+    const entity = await this.testPlanCaseEntity.findOne(id)
     if (entity) {
       return TestPlanCaseService.entityToModel(entity)
     }
@@ -44,31 +44,35 @@ export default class TestPlanCaseService {
   }
 
   public async getByGroupId(groupId: string): Promise<TestPlanCaseModel[]> {
-    const entities = await this.testPlanCaseGroupEntity.find({ where: { group_id: groupId } })
+    const entities = await this.testPlanCaseEntity.find({ where: { group_id: groupId } })
     return entities.map(TestPlanCaseService.entityToModel)
   }
 
   public async getAll() {
-    const entities = await this.testPlanCaseGroupEntity.find()
+    const entities = await this.testPlanCaseEntity.find()
     return entities.map(TestPlanCaseService.entityToModel)
   }
 
   public async create(data: TestPlanCaseModel): Promise<TestPlanCaseModel | undefined> {
     const entity = TestPlanCaseService.modelToEntity(data)
-    const result = await this.testPlanCaseGroupEntity.save(entity)
+    const result = await this.testPlanCaseEntity.save(entity)
     return TestPlanCaseService.entityToModel(result)
   }
 
   public async delete(id: string): Promise<TestPlanCaseModel | undefined> {
-    const entity = await this.testPlanCaseGroupEntity.findOne(id)
+    const entity = await this.testPlanCaseEntity.findOne(id)
     if (entity) {
-      await this.testPlanCaseGroupEntity.remove(entity)
+      await this.testPlanCaseEntity.remove(entity)
       return TestPlanCaseService.entityToModel(entity)
     }
     return undefined
   }
 
   public async deleteByGroupId(groupId: string): Promise<void> {
-    await this.testPlanCaseGroupEntity.delete({ group_id: groupId })
+    await this.testPlanCaseEntity.delete({ group_id: groupId })
+  }
+
+  public async deleteByPlanId(planId: string): Promise<void> {
+    await this.testPlanCaseEntity.delete({ plan_id: planId })
   }
 }
