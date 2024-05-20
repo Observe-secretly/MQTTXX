@@ -61,12 +61,64 @@
     </el-card>
 
     <div ref="connectionFooter" class="testplan-footer" :style="{ marginLeft: leftValue }">
-      <el-card>
+      <el-card class="footer-card">
         <el-row :gutter="20">
-          <el-col :span="24">
+          <el-col :span="8">
+            <el-input
+              size="mini"
+              :disabled="isStartRunTestPlan"
+              placeholder="Topic Name"
+              style="margin-bottom: 10px"
+              v-model="sendTopicName"
+            >
+              <template slot="prepend">{{ $t('testplan.send_topic') }}</template>
+            </el-input>
+
+            <el-input
+              size="mini"
+              :disabled="isStartRunTestPlan"
+              placeholder="Topic Name"
+              v-model="subReceiveRecord.topic"
+            >
+              <template slot="prepend">{{ $t('testplan.subscribe_topic') }}</template>
+              <template slot="suffix">
+                <el-button type="text" size="mini">高级</el-button>
+              </template>
+            </el-input>
+          </el-col>
+          <el-col :span="12">
+            <el-row>
+              <el-col :span="8" class="container">
+                <div class="name-container">
+                  <div class="dot"></div>
+                  <div class="name">{{ $t('testplan.case_count') }}</div>
+                </div>
+                <div class="content">{{ caseCount }}</div>
+              </el-col>
+              <el-col :span="8" class="container">
+                <div class="name-container">
+                  <div class="dot-red"></div>
+                  <div class="name">{{ $t('testplan.failed_case_count') }}</div>
+                </div>
+                <div class="content">{{ failedCaseCount }}</div>
+              </el-col>
+              <el-col :span="8" class="container">
+                <div class="name-container">
+                  <div class="dot-green"></div>
+                  <div class="name">{{ $t('testplan.successed_case_count') }}</div>
+                </div>
+                <div class="content">{{ successedCaseCount }}</div>
+              </el-col>
+            </el-row>
+          </el-col>
+          <el-col :span="4">
             <!-- 运行测试计划 -->
-            <el-button type="primary" icon="el-icon-caret-right" @click="runTestPlan">
+            <el-button v-if="!isStartRunTestPlan" type="primary" icon="el-icon-caret-right" @click="runTestPlan">
               {{ $t('testplan.run_testplan') }}</el-button
+            >
+            <!-- 停止测试计划 -->
+            <el-button v-if="isStartRunTestPlan" type="danger" icon="el-icon-loading" @click="stopTestPlan">
+              {{ $t('testplan.stop_testplan') }}</el-button
             >
           </el-col>
         </el-row>
@@ -92,6 +144,9 @@ import getErrorReason from '@/utils/mqttErrorReason'
 import { Subject, fromEvent } from 'rxjs'
 import { bufferTime, map, filter, takeUntil } from 'rxjs/operators'
 import cbor from 'cbor'
+import time from '@/utils/time'
+import validFormatJson from '@/utils/validFormatJson'
+import { jsonStringify } from '@/utils/jsonUtils'
 
 @Component({
   components: {
@@ -99,6 +154,117 @@ import cbor from 'cbor'
   },
 })
 export default class TestPlanDetail extends Vue {
+  /**
+   * Tab页初始化数据 Start
+   */
+  editableTabsValue = ''
+  editableTabs = [
+    {
+      title: '',
+      name: '',
+      content: [
+        {
+          id: '',
+          group_id: '',
+          planId: '',
+          name: '',
+          sendPayload: '',
+          expectPayload: '',
+          responsePayload: '',
+          result: '',
+        },
+      ],
+    },
+  ]
+  //Tab页初始化数据 End
+
+  /**
+   * 定义表格的头
+   */
+  private columnDefs = [
+    { headerName: this.$tc('testplan.id'), field: 'id', editable: false, maxWidth: 110 },
+    { headerName: this.$tc('testplan.head_name'), field: 'name', editable: true, minWidth: 100, maxWidth: 180 },
+    {
+      headerName: this.$tc('testplan.head_send_payload'),
+      field: 'sendPayload',
+      editable: true,
+      minWidth: 100,
+      maxWidth: 200,
+    },
+    {
+      headerName: this.$tc('testplan.head_expect_payload'),
+      field: 'expectPayload',
+      editable: true,
+      minWidth: 100,
+      maxWidth: 200,
+    },
+    {
+      headerName: this.$tc('testplan.head_response_payload'),
+      field: 'responsePayload',
+      editable: false,
+      minWidth: 200,
+    },
+    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 80 },
+    {
+      headerName: this.$tc('testplan.operation'),
+      cellRenderer: this.renderDeleteCaseButton,
+      editable: false,
+      maxWidth: 80,
+    },
+  ]
+
+  private subReceiveRecord: SubscriptionModel = {
+    id: '',
+    topic: 'limin/receive',
+    qos: 0,
+    disabled: false,
+    createAt: time.getNowDate(),
+    alias: '',
+    nl: undefined,
+    rap: undefined,
+    rh: undefined,
+    subscriptionIdentifier: undefined,
+  }
+  private subLoading = false
+
+  private client: Partial<MqttClient> = {
+    connected: false,
+    options: {},
+  }
+
+  private connectionModel!: ConnectionModel
+  private connectLoading = false
+  private disconnectLoding = false
+  private reTryConnectTimes = 0
+  private curConnectionId!: string | undefined
+  private sendFrequency: number | undefined = undefined
+  private sendTimeId: number | null = null
+  private sendTimedMessageCount = 0
+  private maxReconnectTimes!: number
+
+  private sendTopicName: string = 'limin/send'
+  private caseCount: number = 0
+  private failedCaseCount: number = 0
+  private successedCaseCount: number = 0
+
+  private defaultColDef = {
+    editable: true,
+    sortable: true,
+    flex: 1,
+    minWidth: 100,
+    filter: true,
+  }
+
+  private gridApi: any
+  private gridColumnApi: any
+
+  private onGridReady(params: any) {
+    this.gridApi = params.api
+    this.gridColumnApi = params.columnApi
+  }
+
+  private isStartRunTestPlan: boolean = false
+
   /**
    * 列表页点击时传入的执行计划数据
    * @param testplan
@@ -157,6 +323,10 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
+  /**
+   * 根据分组ID获取case列表
+   * @param id 分组ID
+   */
   private getTestPlanCaseList(id: string) {
     const { testPlanCaseService } = useServices()
     return testPlanCaseService.getByGroupId(id)
@@ -217,30 +387,6 @@ export default class TestPlanDetail extends Vue {
       result: '',
     }
   }
-  /**
-   * Tab页初始化数据 Start
-   */
-  editableTabsValue = ''
-  editableTabs = [
-    {
-      title: '',
-      name: '',
-      content: [
-        {
-          id: '',
-          group_id: '',
-          planId: '',
-          name: '',
-          sendPayload: '',
-          expectPayload: '',
-          responsePayload: '',
-          result: '',
-        },
-      ],
-    },
-  ]
-
-  //Tab页初始化数据 End
 
   /**
    * tabs新增和删除事件
@@ -258,8 +404,7 @@ export default class TestPlanDetail extends Vue {
       this.editableTabsValue = this.currentTabGroup.name
       //添加到数据库中
       this.dbAddTab(this.currentTabGroup)
-    }
-    if (action === 'remove') {
+    } else if (action === 'remove') {
       let delId: string = this.editableTabsValue
       const tabs = this.editableTabs
       let activeName = this.editableTabsValue
@@ -352,8 +497,6 @@ export default class TestPlanDetail extends Vue {
           name: tab.name,
           plan_id: this.testplan.id,
         }
-        console.log(tabs[tabs.length - 1].name)
-        console.log('--->' + this.currentTabGroup.name)
       }
     })
   }
@@ -418,57 +561,6 @@ export default class TestPlanDetail extends Vue {
       const id = event.target.dataset.id
       this.removeCase(id)
     }
-  }
-
-  /**
-   * 定义表格的头
-   */
-  private columnDefs = [
-    { headerName: this.$tc('testplan.id'), field: 'id', editable: false, maxWidth: 110 },
-    { headerName: this.$tc('testplan.head_name'), field: 'name', editable: true, minWidth: 100, maxWidth: 180 },
-    {
-      headerName: this.$tc('testplan.head_send_payload'),
-      field: 'sendPayload',
-      editable: true,
-      minWidth: 100,
-      maxWidth: 200,
-    },
-    {
-      headerName: this.$tc('testplan.head_expect_payload'),
-      field: 'expectPayload',
-      editable: true,
-      minWidth: 100,
-      maxWidth: 200,
-    },
-    {
-      headerName: this.$tc('testplan.head_response_payload'),
-      field: 'responsePayload',
-      editable: false,
-      minWidth: 200,
-    },
-    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 80 },
-    {
-      headerName: this.$tc('testplan.operation'),
-      cellRenderer: this.renderDeleteCaseButton,
-      editable: false,
-      maxWidth: 80,
-    },
-  ]
-
-  private defaultColDef = {
-    editable: true,
-    sortable: true,
-    flex: 1,
-    minWidth: 100,
-    filter: true,
-  }
-
-  private gridApi: any
-  private gridColumnApi: any
-
-  private onGridReady(params: any) {
-    this.gridApi = params.api
-    this.gridColumnApi = params.columnApi
   }
 
   /**
@@ -541,15 +633,22 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
+  /**
+   * 运行测试计划
+   */
   private async runTestPlan() {
+    if (this.isStartRunTestPlan) {
+      return
+    }
+
     // this.editableTabs
     const { connectionService } = useServices()
     //1、查询mqtt连接详情
-    let connection: ConnectionModel | undefined = await connectionService.get(this.testplan.connection_id)
-    if (connection == null || connection == undefined) {
+    const connection: ConnectionModel | undefined = await connectionService.get(this.testplan.connection_id)
+    if (connection === null || connection === undefined) {
       this.$notify({
-        title: this.$tc('connections.connectFailed'),
-        message: this.$tc('testplan.connect_info_invalidate'),
+        title: this.$tc('testplan.connect_info_invalidate'),
+        message: '',
         type: 'error',
         duration: 3000,
         offset: 30,
@@ -557,26 +656,38 @@ export default class TestPlanDetail extends Vue {
       return
     }
     this.connectionModel = connection
+    this.curConnectionId = this.connectionModel.id
     //2、尝试获取连接
-    this.connect(this.connectionModel)
+    if (await this.connect(this.connectionModel)) {
+      console.log('连接成功')
+      //订阅topic
+      this.subscribe()
+
+      //清理测试报告
+
+      //切换状态
+      this.isStartRunTestPlan = true
+    } else {
+      console.log('连接失败')
+      return
+    }
     //3、循环发送所有case。等待响应
     //4、对比预期结果（中途收到预期外的结果不予理会）
     //5、渲染报告和列表
   }
 
-  private client: Partial<MqttClient> = {
-    connected: false,
-    options: {},
+  /**
+   * 停止测试计划
+   */
+  private stopTestPlan() {
+    if (this.isStartRunTestPlan) {
+      //断开mqtt连接
+      this.disconnect()
+
+      //切换状态
+      this.isStartRunTestPlan = false
+    }
   }
-  private connectionModel!: ConnectionModel
-  private connectLoading = false
-  private disconnectLoding = false
-  private reTryConnectTimes = 0
-  private curConnectionId!: string
-  private sendFrequency: number | undefined = undefined
-  private sendTimeId: number | null = null
-  private sendTimedMessageCount = 0
-  private maxReconnectTimes!: number
 
   // Connect
   public async connect(connection: ConnectionModel): Promise<boolean | void> {
@@ -587,7 +698,6 @@ export default class TestPlanDetail extends Vue {
     // new client
     try {
       const { curConnectClient, connectUrl } = await createClient(connection)
-      debugger
       this.client = curConnectClient
       const { name, id } = connection
       if (id && this.client.on) {
@@ -597,7 +707,7 @@ export default class TestPlanDetail extends Vue {
         this.client.on('reconnect', this.onReConnect)
         this.client.on('disconnect', this.onDisconnect)
         this.client.on('offline', this.onOffline)
-        // this.onMessageArrived(this.client as MqttClient, id)
+        this.onMessageArrived(this.client as MqttClient, id)
         // Debug MQTT Packet Log
         this.client.on('packetsend', (packet) => this.onPacketSent(packet, name))
         this.client.on('packetreceive', (packet) => this.onPacketReceived(packet, name))
@@ -612,6 +722,7 @@ export default class TestPlanDetail extends Vue {
       const curOptionsProtocol: Protocol = (this.client as MqttClient).options.protocol as Protocol
       let connectLog = `Client ${connection.name} connected using ${protocolLogMap[curOptionsProtocol]} at ${connectUrl}`
       this.$log.info(connectLog)
+      return true
     } catch (error) {
       const err = error as Error
       this.connectLoading = false
@@ -767,6 +878,7 @@ export default class TestPlanDetail extends Vue {
       this.$log.info(`Timed messages sending stopped for ${this.connectionModel.name}`)
     }
   }
+
   private forceCloseTheConnection() {
     if (this.client.end) {
       this.client.end(true, () => {
@@ -785,10 +897,99 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
-    
-   
+   * 统计测试计划信息<br>
+   * 可以在未开始、测试中、测试结束后调用
+   */
+  private report() {
+    //统计用例总数
+    let total = this.editableTabs.reduce((total, tab) => {
+      // 过滤满足条件的 content 元素
+      const filteredContent = tab.content.filter((content) => {
+        // 判断case的完整性 //TODO
 
-    // Recevied message
+        // 判断条件，判断是否启用 TODO
+        return content.sendPayload != null
+      })
+
+      // 将满足条件的元素数量加入总数
+      return total + filteredContent.length
+    }, 0)
+
+    let successed = this.editableTabs.reduce((total, tab) => {
+      const filteredContent = tab.content.filter((content) => {
+        return content.result == 'successed'
+      })
+
+      // 将满足条件的元素数量加入总数
+      return total + filteredContent.length
+    }, 0)
+
+    let failed = this.editableTabs.reduce((total, tab) => {
+      const filteredContent = tab.content.filter((content) => {
+        return content.result == 'failed'
+      })
+
+      // 将满足条件的元素数量加入总数
+      return total + filteredContent.length
+    }, 0)
+
+    this.caseCount = total
+    this.failedCaseCount = failed
+    this.successedCaseCount = successed
+  }
+
+  public async subscribe() {
+    let isFinished = false
+    let qos = this.subReceiveRecord.qos
+    let nl = this.subReceiveRecord.nl
+    let rap = this.subReceiveRecord.rap
+    let rh = this.subReceiveRecord.rh
+
+    if (this.client.subscribe) {
+      let properties: { subscriptionIdentifier: number } | undefined = undefined
+      if (this.connectionModel.mqttVersion === '5.0' && this.subReceiveRecord.subscriptionIdentifier != undefined) {
+        properties = {
+          subscriptionIdentifier: this.subReceiveRecord.subscriptionIdentifier,
+        }
+      }
+      this.client.subscribe(this.subReceiveRecord.topic, { qos, nl, rap, rh, properties }, async (error, granted) => {
+        this.subLoading = false
+        if (error) {
+          this.$message.error(error)
+          return false
+        }
+        const successSubscriptions: string[] = []
+        granted.forEach((grant) => {
+          if ([0, 1, 2].includes(grant.qos)) {
+            successSubscriptions.push(grant.topic)
+            console.log(grant.topic + '<==================================订阅成功')
+          } else {
+            setTimeout(() => {
+              // this.handleSubError(grant.topic, grant.qos)
+              console.log(grant.topic + '<==================================订阅失败')
+            }, 0)
+          }
+        })
+        if (!successSubscriptions.length) {
+          return false
+        }
+
+        isFinished = true
+      })
+    }
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+    // TODO: maybe we should replace mqtt.js to mqtt-async.js
+    await new Promise(async (resolve) => {
+      // long pool query base on sleep
+      while (!isFinished) {
+        await sleep(100)
+      }
+      resolve(isFinished)
+    })
+  }
+
+  // 处理接收数据
   private onMessageArrived(client: MqttClient, id: string) {
     const unsubscribe$ = new Subject()
 
@@ -808,37 +1009,192 @@ export default class TestPlanDetail extends Vue {
       }),
     )
 
-    const SYSMessageSubject$ = processMessageSubject$.pipe(
-      filter((m: MessageModel) => this.showBytes && id === this.curConnectionId && m.topic.includes('$SYS')),
+    const filterMessageSubject$ = processMessageSubject$.pipe(
+      filter((m: MessageModel) => id === this.curConnectionId && m.topic.includes(this.subReceiveRecord.topic)),
     )
 
-    const nonSYSMessageSubject$ = processMessageSubject$.pipe(
-      filter((m: MessageModel) => !(this.showBytes && id === this.curConnectionId && m.topic.includes('$SYS'))),
-    )
+    filterMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
+      try {
+        messages.forEach((message: MessageModel) => {
+          if (id === this.curConnectionId && message.payload != undefined) {
+            console.log(message.payload)
 
-    // Print message log
-    nonSYSMessageSubject$.subscribe((message: MessageModel) => {
-      this.printMessageLog(id, message)
-    })
-
-    // Render messages
-    nonSYSMessageSubject$.pipe(bufferTime(500)).subscribe((messages: MessageModel[]) => {
-      messages.length && this.renderMessage(id, messages)
-    })
-
-    // Save messages
-    nonSYSMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
-      messages.length && this.saveMessage(id, messages)
-    })
-
-    // Bytes statistics
-    SYSMessageSubject$.pipe(bufferTime(1000)).subscribe((messages: MessageModel[]) => {
-      this.bytesStatistics(messages)
+            //收到一个消息后回复一个消息TODO
+            this.sendMessage(message.payload)
+          } else {
+            this.$log.info(`Connection with ID: ${id} has received a new, unread message`)
+          }
+        })
+      } catch (error) {
+        this.$log.error((error as Error).toString())
+        return
+      }
     })
   }
 
+  /**
+   * 根据类型，把接收到的数据转换成对应的格式
+   * @param topic
+   * @param payload
+   * @param packet
+   */
+  private processReceivedMessage(topic: string, payload: Buffer, packet: IPublishPacket) {
+    const { qos, retain, properties } = packet
+    let receivedPayload
+    let receiveType = this.testplan.payload_type
+    if (receiveType == 'Plaintext') {
+      receivedPayload = payload
+    } else if (receiveType === 'Base64') {
+      receivedPayload = payload.toString('base64')
+    } else if (receiveType === 'Hex') {
+      receivedPayload = payload.toString('hex').replace(/(.{4})/g, '$1 ')
+    } else if (receiveType === 'JSON') {
+      let jsonValue: string | undefined
+      try {
+        jsonValue = validFormatJson(payload.toString())
+      } catch (error) {
+        throw error
+      }
+      if (jsonValue) {
+        receivedPayload = jsonValue
+      }
+    } else if (receiveType === 'CBOR') {
+      try {
+        receivedPayload = jsonStringify(cbor.decodeFirstSync(payload), null, 2)
+      } catch (error) {
+        throw error
+      }
+    }
 
-*/
+    if (!receivedPayload) {
+      return
+    }
+
+    const receivedMessage: MessageModel = {
+      id: uuidv4,
+      out: false,
+      createAt: time.getNowDate(),
+      topic,
+      payload: receivedPayload.toString(),
+      qos,
+      retain,
+      properties,
+    }
+
+    return receivedMessage
+  }
+
+  private filterNonNullEntries(properties: any): any {
+    return Object.fromEntries(Object.entries(properties).filter(([_, v]) => v != null))
+  }
+
+  private processProperties(properties: any) {
+    const props = this.filterNonNullEntries(properties)
+    if (props.correlationData && typeof props.correlationData === 'string') {
+      props.correlationData = Buffer.from(props.correlationData)
+    }
+    if (props.userProperties) {
+      props.userProperties = { ...props.userProperties } // Convert Vue object to JS object
+    }
+    return props
+  }
+
+  /**
+   * 发布消息到mqtt
+   * @param message
+   * @param type
+   */
+  private async publishMessage(message: MessageModel, type: PayloadType): Promise<void> {
+    const { topic, qos, payload, retain, properties } = message
+
+    const props = properties ? this.processProperties(properties) : undefined
+
+    let finalPayload: string | Buffer | undefined = payload
+
+    if (payload) {
+      finalPayload = this.convertPublishPayload(type, message.payload)
+      if (finalPayload === undefined) return
+    }
+
+    this.client.publish!(
+      topic,
+      finalPayload,
+      { qos, retain, properties: props as IClientPublishOptions['properties'] },
+      async (error: Error) => {
+        if (error) {
+          this.handleErrorOnPublish(error)
+          return
+        }
+      },
+    )
+  }
+
+  /**
+   * 根据PayloadType转换待发布的数据类型
+   * @param publishType
+   * @param publishValue
+   */
+  private convertPublishPayload = (publishType: PayloadType, publishValue: string) => {
+    if (publishType === 'Base64') {
+      return Buffer.from(publishValue, 'base64')
+    }
+    if (publishType === 'Hex') {
+      return Buffer.from(publishValue.replaceAll(' ', ''), 'hex')
+    }
+    if (publishType === 'JSON') {
+      try {
+        validFormatJson(publishValue.toString())
+      } catch (error) {
+        const err = error as Error
+        let errorMessage = `${this.$t('connections.publishMsg')} ${err.toString()}`
+        this.$message.error(errorMessage)
+        return undefined
+      }
+    }
+    if (publishType === 'CBOR') {
+      try {
+        return cbor.encodeOne(JSON.parse(publishValue))
+      } catch (error) {
+        const err = error as Error
+        let errorMessage = `${this.$t('connections.publishMsg')} ${err.toString()}`
+        this.$message.error(errorMessage)
+        return undefined
+      }
+    }
+    return publishValue
+  }
+
+  private handleErrorOnPublish(error: Error) {
+    const errorMsg = error.toString()
+    this.$message.error(errorMsg)
+    this.stopTimedSend()
+    this.$log.error(
+      `Failed to publish message for ${this.connectionModel.name}. Error: ${errorMsg}. Stack trace: ${error.stack}`,
+    )
+  }
+
+  /**
+   * 发送消息
+   */
+  private async sendMessage(content: string): Promise<string | void> {
+    let message: MessageModel = {
+      id: uuidv4,
+      out: false,
+      createAt: time.getNowDate(),
+      topic: this.sendTopicName,
+      payload: content,
+      qos: 0,
+      retain: false,
+    }
+
+    await this.publishMessage(message, this.testplan.payload_type)
+  }
+
+  @Watch('editableTabs', { deep: true })
+  onEditableTabsChange() {
+    this.report()
+  }
+
   private mounted() {
     this.$el.addEventListener('click', this.handleDeleteButtonClick)
   }
@@ -935,6 +1291,46 @@ export default class TestPlanDetail extends Vue {
   }
   .ag-theme-alpine .ag-header {
     border-color: #d3dce6 !important;
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .name-container {
+    display: flex;
+    align-items: center;
+  }
+  .name {
+    font-weight: bold;
+  }
+  .content {
+    margin-top: 10px;
+  }
+  .footer-card {
+    text-align: center;
+  }
+  .dot-red {
+    width: 8px;
+    height: 8px;
+    background-color: red;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+
+  .dot-green {
+    width: 8px;
+    height: 8px;
+    background-color: green;
+    border-radius: 50%;
+    margin-right: 5px;
+  }
+
+  .el-input__suffix {
+    display: table-cell !important;
+    position: relative !important;
+    padding-left: 10px;
   }
 }
 </style>
