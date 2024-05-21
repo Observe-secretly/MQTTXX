@@ -113,11 +113,23 @@
           </el-col>
           <el-col :span="4">
             <!-- 运行测试计划 -->
-            <el-button v-if="!isStartRunTestPlan" type="primary" icon="el-icon-caret-right" @click="runTestPlan">
+            <el-button
+              v-if="!isStartRunTestPlan"
+              type="primary"
+              size="small"
+              icon="el-icon-caret-right"
+              @click="runTestPlan"
+            >
               {{ $t('testplan.run_testplan') }}</el-button
             >
             <!-- 停止测试计划 -->
-            <el-button v-if="isStartRunTestPlan" type="danger" icon="el-icon-loading" @click="stopTestPlan">
+            <el-button
+              v-if="isStartRunTestPlan"
+              type="danger"
+              size="small"
+              icon="el-icon-loading"
+              @click="stopTestPlan"
+            >
               {{ $t('testplan.stop_testplan') }}</el-button
             >
           </el-col>
@@ -147,6 +159,7 @@ import cbor from 'cbor'
 import time from '@/utils/time'
 import validFormatJson from '@/utils/validFormatJson'
 import { jsonStringify } from '@/utils/jsonUtils'
+import CircularQueue from '@/utils/CircularQueue'
 
 @Component({
   components: {
@@ -204,7 +217,7 @@ export default class TestPlanDetail extends Vue {
       editable: false,
       minWidth: 200,
     },
-    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 80 },
+    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: true, maxWidth: 100 },
     {
       headerName: this.$tc('testplan.operation'),
       cellRenderer: this.renderDeleteCaseButton,
@@ -672,8 +685,7 @@ export default class TestPlanDetail extends Vue {
       return
     }
     //3、循环发送所有case。等待响应
-    //4、对比预期结果（中途收到预期外的结果不予理会）
-    //5、渲染报告和列表
+    this.sendCaseMessage()
   }
 
   /**
@@ -917,7 +929,7 @@ export default class TestPlanDetail extends Vue {
 
     let successed = this.editableTabs.reduce((total, tab) => {
       const filteredContent = tab.content.filter((content) => {
-        return content.result == 'successed'
+        return content.result == 'success'
       })
 
       // 将满足条件的元素数量加入总数
@@ -989,8 +1001,10 @@ export default class TestPlanDetail extends Vue {
     })
   }
 
+  private restoreCircularQueue: CircularQueue<string> = new CircularQueue<string>(100)
   // 处理接收数据
   private onMessageArrived(client: MqttClient, id: string) {
+    this.restoreCircularQueue = new CircularQueue<string>(100)
     const unsubscribe$ = new Subject()
 
     if (client.listenerCount('close') <= 1) {
@@ -1018,9 +1032,8 @@ export default class TestPlanDetail extends Vue {
         messages.forEach((message: MessageModel) => {
           if (id === this.curConnectionId && message.payload != undefined) {
             console.log(message.payload)
-
-            //收到一个消息后回复一个消息TODO
-            this.sendMessage(message.payload)
+            //回复的消息放入环形队列中
+            this.restoreCircularQueue.enqueue(message.payload)
           } else {
             this.$log.info(`Connection with ID: ${id} has received a new, unread message`)
           }
@@ -1030,6 +1043,82 @@ export default class TestPlanDetail extends Vue {
         return
       }
     })
+  }
+
+  /**
+   * 循环发送Case消息
+   */
+  private async sendCaseMessage() {
+    // 串行发送测试用例
+    for (let i = 0; i < this.editableTabs.length; i++) {
+      let tab = this.editableTabs[i]
+      for (let j = 0; j < tab.content.length; j++) {
+        let testCase = tab.content[j]
+        while (true) {
+          // 发送消息
+          this.sendMessage(testCase.expectPayload)
+          // 每100毫秒获取一次数据，最多获取3秒钟
+          const startTime = Date.now()
+          let receivedMessage
+          testCase.result = 'failed'
+          while (Date.now() - startTime < 3000) {
+            receivedMessage = await this.getMessageFromQueue(3000 - (Date.now() - startTime))
+            if (receivedMessage !== undefined && receivedMessage === testCase.expectPayload) {
+              console.log('Received expected message:', receivedMessage)
+              testCase.result = 'success'
+              break
+            } else if (receivedMessage !== undefined) {
+              console.log('Received unexpected message:', receivedMessage)
+            }
+          }
+          // 刷新表格
+          if (this.gridApi) {
+            this.gridApi.refreshCells({ rowNodes: [this.gridApi.getRowNode(j)] })
+          }
+          //刷新统计报表
+          this.report()
+          break
+        }
+      }
+    }
+    this.stopTestPlan()
+  }
+
+  private async getMessageFromQueue(timeout: number): Promise<string | undefined> {
+    const interval = 50 // 每50毫秒检查一次
+    const maxTries = timeout / interval // 最多尝试次数
+
+    return new Promise((resolve) => {
+      let tries = 0
+      const intervalId = setInterval(() => {
+        const message = this.restoreCircularQueue.dequeue()
+        if (message !== undefined) {
+          clearInterval(intervalId)
+          resolve(message)
+        } else if (tries >= maxTries) {
+          clearInterval(intervalId)
+          resolve(undefined)
+        }
+        tries++
+      }, interval)
+    })
+  }
+
+  /**
+   * 发送消息
+   */
+  private async sendMessage(content: string): Promise<string | void> {
+    let message: MessageModel = {
+      id: uuidv4,
+      out: false,
+      createAt: time.getNowDate(),
+      topic: this.sendTopicName,
+      payload: content,
+      qos: 0,
+      retain: false,
+    }
+
+    await this.publishMessage(message, this.testplan.payload_type)
   }
 
   /**
@@ -1171,23 +1260,6 @@ export default class TestPlanDetail extends Vue {
     this.$log.error(
       `Failed to publish message for ${this.connectionModel.name}. Error: ${errorMsg}. Stack trace: ${error.stack}`,
     )
-  }
-
-  /**
-   * 发送消息
-   */
-  private async sendMessage(content: string): Promise<string | void> {
-    let message: MessageModel = {
-      id: uuidv4,
-      out: false,
-      createAt: time.getNowDate(),
-      topic: this.sendTopicName,
-      payload: content,
-      qos: 0,
-      retain: false,
-    }
-
-    await this.publishMessage(message, this.testplan.payload_type)
   }
 
   @Watch('editableTabs', { deep: true })
