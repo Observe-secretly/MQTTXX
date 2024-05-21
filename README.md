@@ -1,3 +1,6 @@
+# Customized content.
+Added a testing plan feature on top of v1.9.10. Users can pre-enter commands and expected outcomes for automated testing, aiming to enhance hardware delivery standards and clarify hardware delivery boundaries.
+
 <img src="./assets/mqttx-logo.png" width="480" alt="MQTTX Logo" />
 
 [![GitHub Release](https://img.shields.io/github/release/emqx/mqttx?color=brightgreen)](https://github.com/emqx/mqttx/releases)
