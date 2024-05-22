@@ -136,6 +136,37 @@ function handleIpcMessages() {
         console.error('Error opening file dialog:', err)
       })
   })
+
+  ipcMain.on('import-test-plan-data', (event, filePath) => {
+    dialog
+      .showOpenDialog({
+        title: '选择要导入的测试计划文件',
+        filters: [
+          { name: 'JSON Files', extensions: ['json'] }, // 只允许选择 JSON 文件
+        ],
+        properties: ['openFile'], // 只允许选择文件，不允许选择文件夹
+      })
+      .then((result) => {
+        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+          const filePath = result.filePaths[0]
+          try {
+            // 读取 JSON 文件
+            const jsonContent = fs.readFileSync(filePath, 'utf-8')
+            const testPlanData = JSON.parse(jsonContent)
+
+            // 发送导入的测试计划数据到渲染进程
+            event.reply('imported-test-plan-data', testPlanData)
+          } catch (err) {
+            console.error('Error reading JSON file:', err)
+            event.reply('imported-test-plan-data', null) // 发送空数据表示导入失败
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Error opening file dialog:', err)
+        event.reply('imported-test-plan-data', null) // 发送空数据表示导入失败
+      })
+  })
 }
 
 // handle event when APP quit

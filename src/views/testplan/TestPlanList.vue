@@ -5,6 +5,9 @@
       <div class="testplan-tailbar">
         <!-- 添加按钮和收起按钮 -->
         <a href="javascript:;" class="new-button">
+          <i class="iconfont el-icon-upload2" @click="importPlan">{{ $t('testplan.import') }}</i>
+        </a>
+        <a href="javascript:;" class="new-button">
           <i class="iconfont icon-create-new" @click="createPlan"></i>
         </a>
       </div>
@@ -70,13 +73,10 @@ import { Getter, Action } from 'vuex-class'
 import Contextmenu from '@/components/Contextmenu.vue'
 import { ipcRenderer } from 'electron'
 import { TreeNode, ElTree } from 'element-ui/types/tree'
-import { getClientId, getCollectionId } from '@/utils/idGenerator'
-import { flushCurSequenceId } from '@/utils/connections'
-import { sortConnectionTree } from '@/utils/connections'
-import '@/assets/font/iconfont'
 import useServices from '@/database/useServices'
 import time from '@/utils/time'
 import getContextmenuPosition from '@/utils/getContextmenuPosition'
+import { v4 as uuidv4 } from 'uuid'
 
 // Vue.component(Table.name, Table);
 // Vue.component(TableColumn.name, TableColumn);
@@ -213,8 +213,112 @@ export default class TestPlanList extends Vue {
     //TODO 跳转编辑页面
   }
 
+  /**
+   * 导入测试计划
+   */
+  private importPlan() {
+    ipcRenderer.send('import-test-plan-data')
+  }
+
+  // 验证测试计划数据结构是否合法的函数
+  private validateStructure(data: any, expected: any) {
+    const keys = Object.keys(expected)
+    for (const key of keys) {
+      if (typeof data[key] !== typeof expected[key]) {
+        return false
+      }
+      if (typeof expected[key] === 'object') {
+        const isNestedValid = this.validateStructure(data[key], expected[key])
+        if (!isNestedValid) {
+          return false
+        }
+      }
+    }
+    return true
+  }
+
+  private async import(testPlanData: any) {
+    //1、验证testPlanData的完整性
+    // 内部结构是否和导出的结构一样
+    const expectedStructure = {
+      testplan: {
+        id: '',
+        name: '',
+        connection_id: '',
+        protocol_version: '',
+        payload_type: '',
+        create_persion: '',
+        resp_timeout: 3,
+        retry_num: 0,
+      },
+      editableTabs: [
+        {
+          title: '',
+          name: '',
+          content: [
+            {
+              id: '',
+              group_id: '',
+              planId: '',
+              name: '',
+              sendPayload: '',
+              expectPayload: '',
+              responsePayload: '',
+              result: '',
+            },
+          ],
+        },
+      ],
+    }
+
+    const isValidStructure = this.validateStructure(testPlanData, expectedStructure)
+    if (!isValidStructure) {
+      console.error('导入的测试计划数据结构不符合预期')
+      return
+    }
+    //2、验证testplan是否已经存在。不存在则保存
+    const { testPlanService, testPlanCaseGroupService, testPlanCaseService } = useServices()
+    let planId = testPlanData.testplan.id
+    const testplanModel = await testPlanService.get(planId)
+    if (testplanModel) {
+      this.$notify({
+        title: this.$tc('testplan.test_plan_exist'),
+        message: '',
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
+    } else {
+      await testPlanService.create(testPlanData.testplan)
+    }
+
+    //3、循环验证testplanGroup是否已经存在。不存在则保存。并且保存testplanGroup下的case
+    testPlanData.editableTabs.forEach(async (tab: any, index: number) => {
+      await testPlanCaseGroupService.create({
+        label: tab.title,
+        name: tab.name,
+        plan_id: planId,
+      })
+
+      //循环创建case
+      tab.content.forEach(async (caseItem: any, index: number) => {
+        //case的id是8位随机数 容易重复。所以重新随机一次
+        caseItem.id = uuidv4().substr(0, 8)
+        await testPlanCaseService.create(caseItem)
+      })
+    })
+
+    this.loadData(true)
+  }
+
   private mounted() {
     this.loadData(true)
+    // 监听主进程发送的导入响应消息。拿到json文件后做校验 没问题则导入
+    ipcRenderer.on('imported-test-plan-data', (event, testPlanData) => {
+      if (testPlanData != null) {
+        this.import(testPlanData)
+      }
+    })
   }
 }
 </script>

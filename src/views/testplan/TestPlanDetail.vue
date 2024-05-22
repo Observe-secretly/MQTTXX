@@ -81,9 +81,9 @@
               v-model="subReceiveRecord.topic"
             >
               <template slot="prepend">{{ $t('testplan.subscribe_topic') }}</template>
-              <template slot="suffix">
+              <!-- <template slot="suffix">
                 <el-button type="text" size="mini">高级</el-button>
-              </template>
+              </template> -->
             </el-input>
           </el-col>
           <el-col :span="12">
@@ -1094,7 +1094,7 @@ export default class TestPlanDetail extends Vue {
           let timeout = this.testplan.resp_timeout * 1000
           while (Date.now() - startTime < timeout) {
             receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
-            if (receivedMessage !== undefined && receivedMessage === testCase.expectPayload) {
+            if (receivedMessage !== undefined && receivedMessage == testCase.expectPayload) {
               testCase.result = 'success'
               testCase.responsePayload = receivedMessage
               break
@@ -1129,7 +1129,7 @@ export default class TestPlanDetail extends Vue {
         const message = this.restoreCircularQueue.dequeue()
         if (message !== undefined) {
           clearInterval(intervalId)
-          resolve(message)
+          resolve(message.trim())
         } else if (tries >= maxTries) {
           clearInterval(intervalId)
           resolve(undefined)
@@ -1301,11 +1301,15 @@ export default class TestPlanDetail extends Vue {
    * 导出测试计划
    */
   private exportTestPlan() {
+    //导出前清空测试报告信息
+    this.clearReport()
+
     const testPlanData = {
       testplan: this.testplan,
       editableTabs: this.editableTabs,
     }
 
+    //调用系统窗口导出测试计划文件
     ipcRenderer.send('export-test-plan-data', testPlanData, this.testplan.name)
   }
 

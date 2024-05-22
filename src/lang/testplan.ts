@@ -303,7 +303,14 @@ export default {
     hu: '',
   },
   import: {
-    zh: '导入测试计划',
+    zh: '导入',
+    en: 'import',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
+  test_plan_exist: {
+    zh: '测试计划已存在',
     en: '',
     ja: '',
     tr: '',
