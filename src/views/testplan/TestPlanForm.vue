@@ -63,9 +63,7 @@
                 </el-select>
               </el-form-item>
             </el-col>
-            <el-col :span="2">
-              <el-button type="danger" size="mini">{{ $t('testplan.test_connect') }}</el-button>
-            </el-col>
+            <el-col :span="2"> </el-col>
             <!-- 第三行 -->
             <el-col :span="22">
               <el-form-item label-width="93px" :label="$t('testplan.protocol_version')" prop="protocol_version">

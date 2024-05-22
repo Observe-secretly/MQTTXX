@@ -17,6 +17,7 @@ import useServices from '@/database/useServices'
 import { dialog } from 'electron'
 import ORMConfig from './database/database.config'
 import version from '@/version'
+import * as fs from 'fs'
 
 declare const __static: string
 
@@ -107,6 +108,33 @@ function handleIpcMessages() {
         detail: error.message,
       })
     }
+  })
+
+  ipcMain.on('export-test-plan-data', (event, testPlanData, fileName: string) => {
+    dialog
+      .showSaveDialog({
+        title: '导出测试计划数据',
+        defaultPath: fileName + '.json', // 默认文件名和保存路径
+        filters: [
+          { name: 'JSON Files', extensions: ['json'] }, // 只允许保存为 JSON 文件
+        ],
+      })
+      .then((result) => {
+        if (!result.canceled && result.filePath) {
+          const jsonContent = JSON.stringify(testPlanData, null, 2)
+          // 将数据写入用户选择的文件中
+          fs.writeFile(result.filePath, jsonContent, (err) => {
+            if (err) {
+              console.error('Error writing JSON file:', err)
+              return
+            }
+            console.log('JSON file has been saved.')
+          })
+        }
+      })
+      .catch((err) => {
+        console.error('Error opening file dialog:', err)
+      })
   })
 }
 

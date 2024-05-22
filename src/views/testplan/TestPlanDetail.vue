@@ -2,7 +2,7 @@
   <div class="testplan-detail">
     <div
       ref="testplanTopbar"
-      class="testplan-topbar right-topbar"
+      class="testplan-topbar right-topbar topbar"
       :style="{
         left: leftValue,
       }"
@@ -93,45 +93,53 @@
                   <div class="dot"></div>
                   <div class="name">{{ $t('testplan.case_count') }}</div>
                 </div>
-                <div class="content">{{ caseCount }}</div>
+                <h1 class="content">{{ caseCount }}</h1>
               </el-col>
               <el-col :span="8" class="container">
                 <div class="name-container">
                   <div class="dot-red"></div>
                   <div class="name">{{ $t('testplan.failed_case_count') }}</div>
                 </div>
-                <div class="content">{{ failedCaseCount }}</div>
+                <h1 class="content">{{ failedCaseCount }}</h1>
               </el-col>
               <el-col :span="8" class="container">
                 <div class="name-container">
                   <div class="dot-green"></div>
                   <div class="name">{{ $t('testplan.successed_case_count') }}</div>
                 </div>
-                <div class="content">{{ successedCaseCount }}</div>
+                <h1 class="content">{{ successedCaseCount }}</h1>
               </el-col>
             </el-row>
           </el-col>
-          <el-col :span="4">
-            <!-- 运行测试计划 -->
-            <el-button
-              v-if="!isStartRunTestPlan"
-              type="primary"
-              size="small"
-              icon="el-icon-caret-right"
-              @click="runTestPlan"
-            >
-              {{ $t('testplan.run_testplan') }}</el-button
-            >
-            <!-- 停止测试计划 -->
-            <el-button
-              v-if="isStartRunTestPlan"
-              type="danger"
-              size="small"
-              icon="el-icon-loading"
-              @click="stopTestPlan"
-            >
-              {{ $t('testplan.stop_testplan') }}</el-button
-            >
+          <el-col :span="4" class="container">
+            <div class="name-container">
+              <!-- 运行测试计划 -->
+              <el-button
+                v-if="!isStartRunTestPlan"
+                type="primary"
+                size="small"
+                icon="el-icon-caret-right"
+                @click="runTestPlan"
+              >
+                {{ $t('testplan.run_testplan') }}</el-button
+              >
+              <!-- 停止测试计划 -->
+              <el-button
+                v-if="isStartRunTestPlan"
+                type="danger"
+                size="small"
+                icon="el-icon-loading"
+                @click="stopTestPlan"
+              >
+                {{ $t('testplan.stop_testplan') }}</el-button
+              >
+            </div>
+            <div class="content">
+              <!-- 导出测试用例 -->
+              <el-button plain size="small" icon="el-icon-download" @click="exportTestPlan">
+                {{ $t('testplan.export') }}</el-button
+              >
+            </div>
           </el-col>
         </el-row>
       </el-card>
@@ -161,12 +169,28 @@ import validFormatJson from '@/utils/validFormatJson'
 import { jsonStringify } from '@/utils/jsonUtils'
 import CircularQueue from '@/utils/CircularQueue'
 
+import { ipcRenderer } from 'electron'
+
 @Component({
   components: {
     AgGridVue,
   },
 })
 export default class TestPlanDetail extends Vue {
+  /**
+   * 执行计划
+   */
+  private testplan: TestplanModelTree = {
+    id: '',
+    name: '',
+    connection_id: '',
+    protocol_version: '',
+    payload_type: '',
+    create_persion: '',
+    resp_timeout: 3,
+    retry_num: 0,
+  }
+
   /**
    * Tab页初始化数据 Start
    */
@@ -217,7 +241,7 @@ export default class TestPlanDetail extends Vue {
       editable: false,
       minWidth: 200,
     },
-    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: true, maxWidth: 100 },
+    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 100 },
     {
       headerName: this.$tc('testplan.operation'),
       cellRenderer: this.renderDeleteCaseButton,
@@ -259,6 +283,8 @@ export default class TestPlanDetail extends Vue {
   private caseCount: number = 0
   private failedCaseCount: number = 0
   private successedCaseCount: number = 0
+
+  private restoreCircularQueue: CircularQueue<string> = new CircularQueue<string>(100)
 
   private defaultColDef = {
     editable: true,
@@ -369,20 +395,6 @@ export default class TestPlanDetail extends Vue {
 
   get mainTopValue(): string {
     return 32 + 'px'
-  }
-
-  /**
-   * 执行计划
-   */
-  private testplan: TestplanModelTree = {
-    id: '',
-    name: '',
-    connection_id: '',
-    protocol_version: '',
-    payload_type: '',
-    create_persion: '',
-    resp_timeout: 3,
-    retry_num: 0,
   }
 
   /**
@@ -654,6 +666,9 @@ export default class TestPlanDetail extends Vue {
       return
     }
 
+    //清理测试报告
+    this.clearReport()
+
     // this.editableTabs
     const { connectionService } = useServices()
     //1、查询mqtt连接详情
@@ -675,8 +690,6 @@ export default class TestPlanDetail extends Vue {
       console.log('连接成功')
       //订阅topic
       this.subscribe()
-
-      //清理测试报告
 
       //切换状态
       this.isStartRunTestPlan = true
@@ -909,6 +922,26 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
+   *  清空统计数据
+   */
+  private clearReport() {
+    this.editableTabs.forEach((tab, index) => {
+      tab.content.forEach((content, index) => {
+        content.result = ''
+        content.responsePayload = ''
+      })
+    })
+
+    // 刷新当前渲染的表格
+    if (this.gridApi) {
+      const rowCount = this.gridApi.rowModel.getRowCount()
+      for (let i = 0; i < rowCount; i++) {
+        this.gridApi.refreshCells({ rowNodes: [this.gridApi.getRowNode(i)] })
+      }
+    }
+  }
+
+  /**
    * 统计测试计划信息<br>
    * 可以在未开始、测试中、测试结束后调用
    */
@@ -974,11 +1007,9 @@ export default class TestPlanDetail extends Vue {
         granted.forEach((grant) => {
           if ([0, 1, 2].includes(grant.qos)) {
             successSubscriptions.push(grant.topic)
-            console.log(grant.topic + '<==================================订阅成功')
           } else {
             setTimeout(() => {
-              // this.handleSubError(grant.topic, grant.qos)
-              console.log(grant.topic + '<==================================订阅失败')
+              console.log(grant.topic + '订阅失败')
             }, 0)
           }
         })
@@ -1001,7 +1032,6 @@ export default class TestPlanDetail extends Vue {
     })
   }
 
-  private restoreCircularQueue: CircularQueue<string> = new CircularQueue<string>(100)
   // 处理接收数据
   private onMessageArrived(client: MqttClient, id: string) {
     this.restoreCircularQueue = new CircularQueue<string>(100)
@@ -1061,11 +1091,12 @@ export default class TestPlanDetail extends Vue {
           const startTime = Date.now()
           let receivedMessage
           testCase.result = 'failed'
-          while (Date.now() - startTime < 3000) {
-            receivedMessage = await this.getMessageFromQueue(3000 - (Date.now() - startTime))
+          let timeout = this.testplan.resp_timeout * 1000
+          while (Date.now() - startTime < timeout) {
+            receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
             if (receivedMessage !== undefined && receivedMessage === testCase.expectPayload) {
-              console.log('Received expected message:', receivedMessage)
               testCase.result = 'success'
+              testCase.responsePayload = receivedMessage
               break
             } else if (receivedMessage !== undefined) {
               console.log('Received unexpected message:', receivedMessage)
@@ -1084,6 +1115,10 @@ export default class TestPlanDetail extends Vue {
     this.stopTestPlan()
   }
 
+  /**
+   * 从环形队列获取消息
+   * @param timeout 超时时间
+   */
   private async getMessageFromQueue(timeout: number): Promise<string | undefined> {
     const interval = 50 // 每50毫秒检查一次
     const maxTries = timeout / interval // 最多尝试次数
@@ -1262,6 +1297,18 @@ export default class TestPlanDetail extends Vue {
     )
   }
 
+  /**
+   * 导出测试计划
+   */
+  private exportTestPlan() {
+    const testPlanData = {
+      testplan: this.testplan,
+      editableTabs: this.editableTabs,
+    }
+
+    ipcRenderer.send('export-test-plan-data', testPlanData, this.testplan.name)
+  }
+
   @Watch('editableTabs', { deep: true })
   onEditableTabsChange() {
     this.report()
@@ -1278,55 +1325,19 @@ export default class TestPlanDetail extends Vue {
 
 .testplan-detail {
   .testplan-topbar {
-    margin: 20px 0px 20px 20px;
     h2 .title-name {
       max-width: 200px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       margin-right: 12px;
-      color: var(--color-text-light);
+      color: var(--color-text-text);
     }
-    .testplan-info {
-      background-color: var(--color-bg-normal);
-      .topbar {
-        border-bottom: 0px;
-        -webkit-app-region: drag;
-      }
-      .connection-head {
-        display: flex;
-        align-items: center;
-        h2 .title-name {
-          max-width: 200px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          margin-right: 12px;
-        }
-        .offline {
-          color: var(--color-text-light);
-        }
-        .icon-show-testplan,
-        .icon-collapse {
-          font-size: 20px;
-        }
-        a.show-testplan-button {
-          color: var(--color-text-title);
-          margin-right: 16px;
-        }
-        .icon-collapse {
-          font-weight: bold;
-        }
-        .connection-message-count {
-          margin-left: 12px;
-          display: flex;
-        }
-        @include collapse-btn-transform(0deg, 180deg);
-      }
-      .connection-info {
-        padding: 0 16px;
-      }
-    }
+  }
+
+  .topbar {
+    border-bottom: 0px;
+    -webkit-app-region: drag;
   }
 
   .testplan-detail-main {

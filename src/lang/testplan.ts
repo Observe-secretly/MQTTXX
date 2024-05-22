@@ -295,4 +295,18 @@ export default {
     tr: '',
     hu: '',
   },
+  export: {
+    zh: '导出测试计划',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
+  import: {
+    zh: '导入测试计划',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
 }
