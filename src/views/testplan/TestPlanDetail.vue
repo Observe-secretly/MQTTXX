@@ -43,7 +43,7 @@
             <!-- Table start -->
             <ag-grid-vue
               class="ag-theme-alpine"
-              style="height: 500px"
+              style="height: calc(100vh - 304px)"
               :columnDefs="columnDefs"
               :rowData="item.content"
               :defaultColDef="defaultColDef"
@@ -263,7 +263,7 @@ export default class TestPlanDetail extends Vue {
 
   private subReceiveRecord: SubscriptionModel = {
     id: '',
-    topic: 'limin/receive',
+    topic: '',
     qos: 0,
     disabled: false,
     createAt: time.getNowDate(),
@@ -293,7 +293,7 @@ export default class TestPlanDetail extends Vue {
   private sendTimedMessageCount = 0
   private maxReconnectTimes!: number
 
-  private sendTopicName: string = 'limin/send'
+  private sendTopicName: string = ''
   private caseCount: number = 0
   private failedCaseCount: number = 0
   private successedCaseCount: number = 0
@@ -1084,6 +1084,22 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
+   * 响应结果比对
+   * @param receivedMessage 实际结果
+   * @param expectPayload 预期结果
+   */
+  private msgCompare(receivedMessage: string, expectPayload: string) {
+    // 将通配符 '*' 转换为正则表达式 '.*'
+    let regexPattern = expectPayload.replace(/\*/g, '.*')
+
+    // 创建正则表达式对象，使用 ^ 和 $ 来确保完全匹配
+    let regex = new RegExp('^' + regexPattern + '$')
+
+    // 使用正则表达式进行匹配
+    return regex.test(receivedMessage)
+  }
+
+  /**
    * 循环发送Case消息
    */
   private async sendCaseMessage() {
@@ -1102,7 +1118,7 @@ export default class TestPlanDetail extends Vue {
           let timeout = this.testplan.resp_timeout * 1000
           while (Date.now() - startTime < timeout) {
             receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
-            if (receivedMessage !== undefined && receivedMessage == testCase.expectPayload) {
+            if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
               testCase.result = 'success'
               testCase.responsePayload = receivedMessage
               break
