@@ -75,4 +75,14 @@ export default class TestPlanCaseGroupService {
     query.name = name
     await this.testPlanCaseGroupEntity.save(query)
   }
+
+  public async craeteTable() {
+    this.testPlanCaseGroupEntity.query(`
+      CREATE TABLE IF NOT EXISTS "TestPlanCaseGroupEntity" (
+          "id" varchar PRIMARY KEY NOT NULL,
+          "name" varchar NOT NULL,
+          "plan_id" varchar NOT NULL
+      )
+  `)
+  }
 }

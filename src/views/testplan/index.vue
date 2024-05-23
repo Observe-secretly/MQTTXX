@@ -31,6 +31,7 @@ import TestPlanEmptyPage from '@/components/TestPlanEmptyPage.vue'
 import TestPlanList from './TestPlanList.vue'
 import TestPlanDetail from './TestPlanDetail.vue'
 import TestPlanForm from './TestPlanForm.vue'
+import useServices from '@/database/useServices'
 
 @Component({
   components: {
@@ -100,6 +101,20 @@ export default class TestPlan extends Vue {
     if (isClear) {
       this.currentTestplan = null
     }
+  }
+
+  /**
+   * 第一次运行没有数据库表，则自动创建表
+   */
+  private async CreateTable() {
+    const { testPlanService, testPlanCaseGroupService, testPlanCaseService } = useServices()
+    await testPlanService.craeteTable()
+    await testPlanCaseGroupService.craeteTable()
+    await testPlanCaseService.craeteTable()
+  }
+
+  private created() {
+    this.CreateTable()
   }
 }
 </script>

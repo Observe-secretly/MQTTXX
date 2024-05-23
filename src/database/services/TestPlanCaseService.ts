@@ -75,4 +75,17 @@ export default class TestPlanCaseService {
   public async deleteByPlanId(planId: string): Promise<void> {
     await this.testPlanCaseEntity.delete({ plan_id: planId })
   }
+
+  public async craeteTable() {
+    this.testPlanCaseEntity.query(`
+      CREATE TABLE IF NOT EXISTS "TestPlanCaseEntity" (
+          "id" varchar PRIMARY KEY NOT NULL,
+          "group_id" varchar NOT NULL,
+          "plan_id" varchar NOT NULL,
+          "name" varchar NOT NULL,
+          "send_payload" varchar NOT NULL,
+          "expect_payload" varchar NOT NULL
+      )
+  `)
+  }
 }

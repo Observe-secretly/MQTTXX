@@ -67,4 +67,19 @@ export default class TestPlanService {
     }
     return undefined
   }
+
+  public async craeteTable() {
+    this.testPlanRepository.query(`
+      CREATE TABLE IF NOT EXISTS "TestPlanEntity" (
+          "id" varchar PRIMARY KEY NOT NULL,
+          "name" varchar NOT NULL,
+          "connection_id" varchar NOT NULL,
+          "protocol_version" varchar NOT NULL,
+          "payload_type" varchar CHECK(payload_type IN ('Plaintext' , 'Hex' , 'Base64' , 'JSON' , 'CBOR')) NOT NULL DEFAULT ('Plaintext'),
+          "create_persion" varchar NOT NULL,
+          "resp_timeout" integer NOT NULL,
+          "retry_num" integer NOT NULL
+      )
+  `)
+  }
 }

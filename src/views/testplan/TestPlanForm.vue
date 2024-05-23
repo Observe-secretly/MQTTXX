@@ -57,7 +57,12 @@
             <el-col :span="22">
               <el-form-item label-width="93px" :label="$t('testplan.select_connect')" prop="connection_id">
                 <el-select size="small" v-model="record.connection_id">
-                  <el-option v-for="item in connections" :key="item.id" :value="item.id">
+                  <el-option
+                    v-for="item in connections"
+                    :key="item.id"
+                    :label="item.name + '@' + item.host + ':' + item.port"
+                    :value="item.id"
+                  >
                     {{ item.name }}@{{ item.host }}:{{ item.port }}({{ item.id }})
                   </el-option>
                 </el-select>
