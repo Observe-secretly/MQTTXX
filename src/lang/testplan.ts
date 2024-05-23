@@ -316,4 +316,11 @@ export default {
     tr: '',
     hu: '',
   },
+  del_case_group_confirm: {
+    zh: '是否确实要删除此选项卡？',
+    en: 'Are you sure you want to delete this tab?',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
 }

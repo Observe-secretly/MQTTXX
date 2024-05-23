@@ -20,15 +20,26 @@
           marginLeft: leftValue,
         }"
       >
-        <el-tabs
-          class="tab"
-          v-model="editableTabsValue"
-          type="card"
-          editable
-          @edit="handleTabsEdit"
-          @tab-click="handleTabsClick"
-        >
+        <el-tabs class="tab" v-model="editableTabsValue" type="card" editable @edit="handleTabsEdit">
           <el-tab-pane :key="item.name" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
+            <template slot="label">
+              <span
+                v-if="!isEditTabName && editTabName != item.name"
+                style="display: inline-block; text-align: center"
+                @dblclick="tabsContent(item.name)"
+              >
+                {{ item.title }}
+              </span>
+              <el-input
+                v-if="isEditTabName && editTabName == item.name"
+                size="mini"
+                class="edit-tab-input"
+                v-model="item.title"
+                type="text"
+                @blur="updateTabName"
+              />
+            </template>
+
             <!-- Table start -->
             <ag-grid-vue
               class="ag-theme-alpine"
@@ -269,6 +280,9 @@ export default class TestPlanDetail extends Vue {
     options: {},
   }
 
+  private isEditTabName = false
+  private editTabName = ''
+
   private connectionModel!: ConnectionModel
   private connectLoading = false
   private disconnectLoding = false
@@ -412,7 +426,6 @@ export default class TestPlanDetail extends Vue {
       result: '',
     }
   }
-
   /**
    * tabs新增和删除事件
    * @param targetName
@@ -430,27 +443,30 @@ export default class TestPlanDetail extends Vue {
       //添加到数据库中
       this.dbAddTab(this.currentTabGroup)
     } else if (action === 'remove') {
-      let delId: string = this.editableTabsValue
-      const tabs = this.editableTabs
-      let activeName = this.editableTabsValue
-      const filteredTabs = tabs.filter((tab) => tab.name !== targetName)
+      const confirmation = confirm(this.$tc('testplan.del_case_group_confirm'))
+      if (confirmation) {
+        let delId: string = this.editableTabsValue
+        const tabs = this.editableTabs
+        let activeName = this.editableTabsValue
+        const filteredTabs = tabs.filter((tab) => tab.name !== targetName)
 
-      // If the current active tab is being removed, select the next tab or the previous one
-      if (activeName === targetName) {
-        const tabIndex = tabs.findIndex((tab) => tab.name === targetName)
-        const nextTab = tabs[tabIndex + 1] || tabs[tabIndex - 1]
-        if (nextTab) {
-          activeName = nextTab.name
-        } else {
-          activeName = ''
+        // If the current active tab is being removed, select the next tab or the previous one
+        if (activeName === targetName) {
+          const tabIndex = tabs.findIndex((tab) => tab.name === targetName)
+          const nextTab = tabs[tabIndex + 1] || tabs[tabIndex - 1]
+          if (nextTab) {
+            activeName = nextTab.name
+          } else {
+            activeName = ''
+          }
         }
+
+        this.editableTabs = filteredTabs
+        this.editableTabsValue = activeName
+
+        //从数据库删除
+        this.dbDelTab(delId)
       }
-
-      this.editableTabs = filteredTabs
-      this.editableTabsValue = activeName
-
-      //从数据库删除
-      this.dbDelTab(delId)
     }
 
     // 在tab发生改变的时候修改当前的Tab
@@ -524,14 +540,6 @@ export default class TestPlanDetail extends Vue {
         }
       }
     })
-  }
-
-  private handleTabsClick(tab: any) {
-    this.currentTabGroup = {
-      label: uuidv4(),
-      name: tab.name,
-      plan_id: this.testplan.id,
-    }
   }
 
   /**
@@ -1318,6 +1326,31 @@ export default class TestPlanDetail extends Vue {
     this.report()
   }
 
+  /**
+   * tabs的双击可编辑
+   **/
+  private tabsContent(name: string) {
+    console.log(name)
+    this.isEditTabName = true
+    this.editTabName = name
+  }
+
+  /**
+   * 更新tab名称
+   */
+  private updateTabName() {
+    //改动写进数据库
+    const { testPlanCaseGroupService } = useServices()
+    this.editableTabs.forEach((tab, index) => {
+      if (tab.name == this.editTabName) {
+        testPlanCaseGroupService.updateName(tab.name, tab.title)
+      }
+    })
+
+    //退出编辑模式
+    this.isEditTabName = false
+  }
+
   private mounted() {
     this.$el.addEventListener('click', this.handleDeleteButtonClick)
   }
@@ -1418,6 +1451,10 @@ export default class TestPlanDetail extends Vue {
     display: table-cell !important;
     position: relative !important;
     padding-left: 10px;
+  }
+
+  .edit-tab-input {
+    width: 120px;
   }
 }
 </style>

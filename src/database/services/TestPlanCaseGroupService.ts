@@ -65,4 +65,14 @@ export default class TestPlanCaseGroupService {
   public async deleteByPlanId(planId: string): Promise<void> {
     await this.testPlanCaseGroupEntity.delete({ plan_id: planId })
   }
+
+  public async updateName(id: string | undefined, name: string): Promise<void> {
+    if (!id) return
+    const query: TestPlanCaseGroupEntity | undefined = await this.testPlanCaseGroupEntity.findOne(id)
+    if (!query) {
+      return
+    }
+    query.name = name
+    await this.testPlanCaseGroupEntity.save(query)
+  }
 }
