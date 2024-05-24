@@ -20,7 +20,14 @@
           marginLeft: leftValue,
         }"
       >
-        <el-tabs class="tab" v-model="editableTabsValue" type="card" editable @edit="handleTabsEdit">
+        <el-tabs
+          class="tab"
+          v-model="editableTabsValue"
+          type="card"
+          editable
+          @edit="handleTabsEdit"
+          @tab-click="tabClick"
+        >
           <el-tab-pane :key="item.name" v-for="(item, index) in editableTabs" :label="item.title" :name="item.name">
             <template slot="label">
               <span
@@ -31,6 +38,7 @@
                 {{ item.title }}
               </span>
               <el-input
+                @keydown.native.delete.capture.stop
                 v-if="isEditTabName && editTabName == item.name"
                 size="mini"
                 class="edit-tab-input"
@@ -443,6 +451,13 @@ export default class TestPlanDetail extends Vue {
       result: '',
     }
   }
+
+  private tabClick(tab: any) {
+    this.currentTabGroup.label = tab.label
+    this.currentTabGroup.name = tab.name
+    this.editableTabsValue = tab.name
+  }
+
   /**
    * tabs新增和删除事件
    * @param targetName
@@ -454,7 +469,7 @@ export default class TestPlanDetail extends Vue {
       this.editableTabs.push({
         title: this.currentTabGroup.label,
         name: this.currentTabGroup.name,
-        content: [this.defaultCase()],
+        content: [],
       })
       this.editableTabsValue = this.currentTabGroup.name
       //添加到数据库中
@@ -481,8 +496,8 @@ export default class TestPlanDetail extends Vue {
         this.editableTabs = filteredTabs
         this.editableTabsValue = activeName
 
-        //从数据库删除
-        this.dbDelTab(delId)
+        // //从数据库删除
+        this.dbDelTab(targetName)
       }
     }
 
@@ -523,11 +538,15 @@ export default class TestPlanDetail extends Vue {
    * @param id
    */
   private async dbDelTab(id: string) {
-    const { testPlanCaseGroupService } = useServices()
+    const { testPlanCaseGroupService, testPlanCaseService } = useServices()
     let res: TestPlanCaseGroupModel | undefined = undefined
     try {
+      //删除分组
       res = await testPlanCaseGroupService.delete(id)
-      this.$log.info(`Created testPlanCaseGroupService for the : ${res?.name}, label: ${res?.label}`)
+      this.$log.info(`Delete testPlanCaseGroupService for the : ${res?.name}, label: ${res?.label}`)
+      //删除分组下的case
+      await testPlanCaseService.deleteByGroupId(id)
+      this.$log.info(`Delete testPlanCaseService for group id : ${id}`)
       this.$notify({
         title: this.$tc('testplan.delete_case_group_successed'),
         message: '',
@@ -593,7 +612,7 @@ export default class TestPlanDetail extends Vue {
             tab.content.splice(i, 1)
             //在数据库中删除case
             const { testPlanCaseService } = useServices()
-            await testPlanCaseService.delete(tab.content[i].id)
+            await testPlanCaseService.delete(id)
 
             break // 删除第一个匹配的行后跳出循环
           }
@@ -1408,6 +1427,7 @@ export default class TestPlanDetail extends Vue {
 
     //退出编辑模式
     this.isEditTabName = false
+    this.editTabName = ''
   }
 
   private mounted() {
