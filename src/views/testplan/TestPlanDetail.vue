@@ -48,6 +48,7 @@
               :rowData="item.content"
               :defaultColDef="defaultColDef"
               @grid-ready="onGridReady"
+              @cell-value-changed="updateCase"
             ></ag-grid-vue>
             <!-- edit tips -->
             <el-row :gutter="20">
@@ -58,9 +59,6 @@
             <!-- Add Row Button -->
             <el-row :gutter="20" class="new-button-row">
               <el-col :span="24">
-                <el-button icon="el-icon-upload" type="primary" size="mini" @click="savePlanDetail">
-                  {{ $t('common.save') }}
-                </el-button>
                 <el-button class="btn new-subs-btn" icon="el-icon-plus" type="outline" size="mini" @click="addCase">
                   {{ $t('testplan.add_case_row') }}
                 </el-button>
@@ -327,7 +325,7 @@ export default class TestPlanDetail extends Vue {
    */
   private async topicUpdate() {
     this.testplan.send_topic = this.sendTopicName
-    this.testplan.receive_topic = this.sendTopicName
+    this.testplan.receive_topic = this.subReceiveRecord.topic
 
     //更新topic到数据库
     const { testPlanService } = useServices()
@@ -390,6 +388,9 @@ export default class TestPlanDetail extends Vue {
         },
       ]
     }
+
+    this.sendTopicName = this.testplan.send_topic
+    this.subReceiveRecord.topic = this.testplan.receive_topic
   }
 
   /**
@@ -561,12 +562,16 @@ export default class TestPlanDetail extends Vue {
   /**
    * 添加case
    */
-  private addCase() {
+  private async addCase() {
     // 根据 this.currentGroup.name 找到对应的 tab
     const tab = this.editableTabs.find((tab) => tab.name === this.currentTabGroup.name)
     if (tab) {
       // 在 content 中增加一个 this.defaultCase()
-      tab.content.push(this.defaultCase())
+      let testCase = this.defaultCase()
+      tab.content.push(testCase)
+      //在数据库中增加case
+      const { testPlanCaseService } = useServices()
+      await testPlanCaseService.create(testCase)
     } else {
       console.error(`Tab with name ${this.currentTabGroup.name} not found`)
     }
@@ -576,7 +581,7 @@ export default class TestPlanDetail extends Vue {
    * 删除case
    * @param id
    */
-  private removeCase(id: any) {
+  private async removeCase(id: any) {
     // 根据 this.currentGroup.name 找到对应的 tab
     const tab = this.editableTabs.find((tab) => tab.name === this.currentTabGroup.name)
     if (tab) {
@@ -586,6 +591,10 @@ export default class TestPlanDetail extends Vue {
           if (tab.content[i].id === id) {
             // 删除找到的行
             tab.content.splice(i, 1)
+            //在数据库中删除case
+            const { testPlanCaseService } = useServices()
+            await testPlanCaseService.delete(tab.content[i].id)
+
             break // 删除第一个匹配的行后跳出循环
           }
         }
@@ -595,6 +604,21 @@ export default class TestPlanDetail extends Vue {
     } else {
       console.error(`Tab with name ${this.currentTabGroup.name} not found`)
     }
+  }
+
+  /**
+   * 更新case
+   */
+  private async updateCase(event: any) {
+    // 当单元格值改变时的事件处理程序
+    // event参数包含了改变后的值以及相关的数据
+    const newValue = event.newValue
+    const oldValue = event.oldValue
+    const rowNode = event.node
+    const rowData = rowNode.data
+
+    const { testPlanCaseService } = useServices()
+    await testPlanCaseService.update(rowData.id, rowData)
   }
 
   /**
@@ -612,75 +636,75 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
-  /**
-   * 保存测试计划明细
-   */
-  private savePlanDetail() {
-    //1、校验表格的名称、发送、预期数据不能为空
-    for (let i = 0; i < this.editableTabs.length; i++) {
-      const tab = this.editableTabs[i]
-      if (tab.name === this.currentTabGroup.name) {
-        if (tab.content.length == 0) return
-        for (let j = 0; j < tab.content.length; j++) {
-          const caseItem = tab.content[j]
-          if (caseItem.name === '' || caseItem.sendPayload === '' || caseItem.expectPayload === '') {
-            this.$notify({
-              title: this.$tc('testplan.case_info_incomplete'),
-              message: '',
-              type: 'error',
-              duration: 3000,
-              offset: 30,
-            })
-            return
-          }
-        }
-        break
-      }
-    }
-    //2、删除这个tab下的所有case
-    const { testPlanCaseService } = useServices()
-    try {
-      testPlanCaseService.deleteByGroupId(this.currentTabGroup.name)
-    } catch (error) {
-      this.$notify({
-        title: this.$tc('testplan.case_info_incomplete'),
-        message: `${error.toString()}`,
-        type: 'error',
-        duration: 3000,
-        offset: 30,
-      })
-      return
-    }
+  // /**
+  //  * 保存测试计划明细
+  //  */
+  // private savePlanDetail() {
+  //   //1、校验表格的名称、发送、预期数据不能为空
+  //   for (let i = 0; i < this.editableTabs.length; i++) {
+  //     const tab = this.editableTabs[i]
+  //     if (tab.name === this.currentTabGroup.name) {
+  //       if (tab.content.length == 0) return
+  //       for (let j = 0; j < tab.content.length; j++) {
+  //         const caseItem = tab.content[j]
+  //         if (caseItem.name === '' || caseItem.sendPayload === '' || caseItem.expectPayload === '') {
+  //           this.$notify({
+  //             title: this.$tc('testplan.case_info_incomplete'),
+  //             message: '',
+  //             type: 'error',
+  //             duration: 3000,
+  //             offset: 30,
+  //           })
+  //           return
+  //         }
+  //       }
+  //       break
+  //     }
+  //   }
+  //   //2、删除这个tab下的所有case
+  //   const { testPlanCaseService } = useServices()
+  //   try {
+  //     testPlanCaseService.deleteByGroupId(this.currentTabGroup.name)
+  //   } catch (error) {
+  //     this.$notify({
+  //       title: this.$tc('testplan.case_info_incomplete'),
+  //       message: `${error.toString()}`,
+  //       type: 'error',
+  //       duration: 3000,
+  //       offset: 30,
+  //     })
+  //     return
+  //   }
 
-    //3、保存当前数据
-    try {
-      for (let i = 0; i < this.editableTabs.length; i++) {
-        const tab = this.editableTabs[i]
-        if (tab.name === this.currentTabGroup.name) {
-          for (let j = 0; j < tab.content.length; j++) {
-            const caseItem = tab.content[j]
-            testPlanCaseService.create(caseItem)
-          }
-          break // 找到匹配的 tab 后跳出外层循环
-        }
-      }
-      this.$notify({
-        title: this.$tc('testplan.save_case_successed'),
-        message: '',
-        type: 'success',
-        duration: 3000,
-        offset: 30,
-      })
-    } catch (error) {
-      this.$notify({
-        title: this.$tc('testplan.createfailed_case'),
-        message: `${error.toString()}`,
-        type: 'error',
-        duration: 3000,
-        offset: 30,
-      })
-    }
-  }
+  //   //3、保存当前数据
+  //   try {
+  //     for (let i = 0; i < this.editableTabs.length; i++) {
+  //       const tab = this.editableTabs[i]
+  //       if (tab.name === this.currentTabGroup.name) {
+  //         for (let j = 0; j < tab.content.length; j++) {
+  //           const caseItem = tab.content[j]
+  //           testPlanCaseService.create(caseItem)
+  //         }
+  //         break // 找到匹配的 tab 后跳出外层循环
+  //       }
+  //     }
+  //     this.$notify({
+  //       title: this.$tc('testplan.save_case_successed'),
+  //       message: '',
+  //       type: 'success',
+  //       duration: 3000,
+  //       offset: 30,
+  //     })
+  //   } catch (error) {
+  //     this.$notify({
+  //       title: this.$tc('testplan.createfailed_case'),
+  //       message: `${error.toString()}`,
+  //       type: 'error',
+  //       duration: 3000,
+  //       offset: 30,
+  //     })
+  //   }
+  // }
 
   /**
    * 运行测试计划
@@ -1125,23 +1149,26 @@ export default class TestPlanDetail extends Vue {
       for (let j = 0; j < tab.content.length; j++) {
         let testCase = tab.content[j]
         while (true) {
-          // 发送消息
-          this.sendMessage(testCase.sendPayload)
-          // 每100毫秒获取一次数据，最多获取3秒钟
-          const startTime = Date.now()
-          let receivedMessage
           testCase.result = 'failed'
-          let timeout = this.testplan.resp_timeout * 1000
-          while (Date.now() - startTime < timeout) {
-            receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
-            if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
-              testCase.result = 'success'
-              testCase.responsePayload = receivedMessage
-              break
-            } else if (receivedMessage !== undefined) {
-              console.log('Received unexpected message:', receivedMessage)
+          if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
+            // 发送消息
+            this.sendMessage(testCase.sendPayload)
+            // 每100毫秒获取一次数据，最多获取3秒钟
+            const startTime = Date.now()
+            let receivedMessage
+            let timeout = this.testplan.resp_timeout * 1000
+            while (Date.now() - startTime < timeout) {
+              receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
+              if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
+                testCase.result = 'success'
+                testCase.responsePayload = receivedMessage
+                break
+              } else if (receivedMessage !== undefined) {
+                console.log('Received unexpected message:', receivedMessage)
+              }
             }
           }
+
           // 刷新表格
           if (this.gridApi) {
             this.gridApi.refreshCells({ rowNodes: [this.gridApi.getRowNode(j)] })

@@ -76,6 +76,21 @@ export default class TestPlanCaseService {
     await this.testPlanCaseEntity.delete({ plan_id: planId })
   }
 
+  public async update(id: string | undefined, testCase: TestPlanCaseModel): Promise<void> {
+    if (!id) return
+    const query: TestPlanCaseEntity | undefined = await this.testPlanCaseEntity.findOne(id)
+    if (!query) {
+      return
+    }
+
+    query.group_id = testCase.group_id
+    query.name = testCase.name
+    query.send_payload = testCase.sendPayload
+    query.expect_payload = testCase.expectPayload
+
+    await this.testPlanCaseEntity.save(query)
+  }
+
   /**
    * 查询表是否存在
    * @returns 返回 boolean
@@ -93,9 +108,9 @@ export default class TestPlanCaseService {
           "id" varchar PRIMARY KEY NOT NULL,
           "group_id" varchar NOT NULL,
           "plan_id" varchar NOT NULL,
-          "name" varchar NOT NULL,
-          "send_payload" varchar NOT NULL,
-          "expect_payload" varchar NOT NULL
+          "name" varchar,
+          "send_payload" varchar,
+          "expect_payload" varchar
       )
   `)
   }
