@@ -276,6 +276,8 @@ declare global {
     create_persion: string
     resp_timeout: number
     retry_num: number
+    send_topic: string
+    receive_topic: string
   }
   type TestplanModelTree = TestplanModel
 

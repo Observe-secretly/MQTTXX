@@ -76,6 +76,17 @@ export default class TestPlanCaseService {
     await this.testPlanCaseEntity.delete({ plan_id: planId })
   }
 
+  /**
+   * 查询表是否存在
+   * @returns 返回 boolean
+   */
+  public async tableExist(): Promise<boolean> {
+    const hasTable = await this.testPlanCaseEntity.query(`
+      SELECT count(*) FROM sqlite_master WHERE type='table' AND name='TestPlanCaseEntity'
+    `)
+    return hasTable[0]['count(*)'] > 0
+  }
+
   public async craeteTable() {
     this.testPlanCaseEntity.query(`
       CREATE TABLE IF NOT EXISTS "TestPlanCaseEntity" (

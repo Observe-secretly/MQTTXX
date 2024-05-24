@@ -323,4 +323,11 @@ export default {
     tr: 'Bu sekme silinsin mi emin misiniz?',
     hu: 'Biztosan törölni szeretné ezt a lapot?',
   },
+  test_plan_json_invalid: {
+    zh: '导入的测试计划数据结构不符合预期',
+    en: '',
+    ja: '',
+    tr: '',
+    hu: '',
+  },
 }

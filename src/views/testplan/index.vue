@@ -102,20 +102,6 @@ export default class TestPlan extends Vue {
       this.currentTestplan = null
     }
   }
-
-  /**
-   * 第一次运行没有数据库表，则自动创建表
-   */
-  private async CreateTable() {
-    const { testPlanService, testPlanCaseGroupService, testPlanCaseService } = useServices()
-    await testPlanService.craeteTable()
-    await testPlanCaseGroupService.craeteTable()
-    await testPlanCaseService.craeteTable()
-  }
-
-  private created() {
-    this.CreateTable()
-  }
 }
 </script>
 

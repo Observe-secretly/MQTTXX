@@ -76,6 +76,17 @@ export default class TestPlanCaseGroupService {
     await this.testPlanCaseGroupEntity.save(query)
   }
 
+  /**
+   * 查询表是否存在
+   * @returns 返回 boolean
+   */
+  public async tableExist(): Promise<boolean> {
+    const hasTable = await this.testPlanCaseGroupEntity.query(`
+      SELECT count(*) FROM sqlite_master WHERE type='table' AND name='TestPlanCaseGroupEntity'
+    `)
+    return hasTable[0]['count(*)'] > 0
+  }
+
   public async craeteTable() {
     this.testPlanCaseGroupEntity.query(`
       CREATE TABLE IF NOT EXISTS "TestPlanCaseGroupEntity" (

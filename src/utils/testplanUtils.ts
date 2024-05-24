@@ -8,6 +8,8 @@ export const getDefaultRecord = (): TestplanModel => {
     create_persion: '',
     resp_timeout: 3,
     retry_num: 0,
+    send_topic: '',
+    receive_topic: '',
   }
 }
 

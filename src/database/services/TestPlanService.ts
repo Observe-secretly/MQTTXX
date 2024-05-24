@@ -24,6 +24,8 @@ export default class TestPlanService {
       create_persion: data.createPersion,
       resp_timeout: data.respTimeout,
       retry_num: data.retryNum,
+      send_topic: data.sendTopic,
+      receive_topic: data.receiveTopic,
     } as TestplanModel
   }
 
@@ -37,6 +39,8 @@ export default class TestPlanService {
       createPersion: data.create_persion,
       respTimeout: data.resp_timeout,
       retryNum: data.retry_num,
+      sendTopic: data.send_topic,
+      receiveTopic: data.receive_topic,
     } as TestPlanEntity
   }
 
@@ -68,6 +72,38 @@ export default class TestPlanService {
     return undefined
   }
 
+  public async update(id: string | undefined, testplan: TestplanModel): Promise<void> {
+    if (!id) return
+    const query: TestPlanEntity | undefined = await this.testPlanRepository.findOne(id)
+    if (!query) {
+      return
+    }
+
+    query.name = testplan.name
+    query.connectionId = testplan.connection_id
+    query.protocolVersion = testplan.protocol_version
+    query.payloadType = testplan.payload_type
+    query.createPersion = testplan.create_persion
+    query.respTimeout = testplan.resp_timeout
+    query.retryNum = testplan.retry_num
+    query.sendTopic = testplan.send_topic
+    query.receiveTopic = testplan.receive_topic
+
+    await this.testPlanRepository.save(query)
+  }
+
+  /**
+   * 查询表是否存在
+   * @returns 返回 boolean
+   */
+  public async tableExist(): Promise<boolean> {
+    const hasTable = await this.testPlanRepository.query(`
+      SELECT count(*) FROM sqlite_master WHERE type='table' AND name='TestPlanEntity'
+    `)
+
+    return hasTable[0]['count(*)'] > 0
+  }
+
   public async craeteTable() {
     this.testPlanRepository.query(`
       CREATE TABLE IF NOT EXISTS "TestPlanEntity" (
@@ -78,7 +114,9 @@ export default class TestPlanService {
           "payload_type" varchar CHECK(payload_type IN ('Plaintext' , 'Hex' , 'Base64' , 'JSON' , 'CBOR')) NOT NULL DEFAULT ('Plaintext'),
           "create_persion" varchar NOT NULL,
           "resp_timeout" integer NOT NULL,
-          "retry_num" integer NOT NULL
+          "retry_num" integer NOT NULL,
+          "send_topic" varchar,
+          "receive_topic" varchar
       )
   `)
   }

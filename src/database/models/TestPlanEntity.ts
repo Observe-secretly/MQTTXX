@@ -32,4 +32,10 @@ export default class TestPlanEntity {
 
   @Column({ type: 'integer', name: 'retry_num' })
   retryNum!: number
+
+  @Column({ type: 'varchar', name: 'send_topic' })
+  sendTopic!: string
+
+  @Column({ type: 'varchar', name: 'receive_topic' })
+  receiveTopic!: string
 }

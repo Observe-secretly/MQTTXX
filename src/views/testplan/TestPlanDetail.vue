@@ -81,6 +81,7 @@
               placeholder="Topic Name"
               style="margin-bottom: 10px"
               v-model="sendTopicName"
+              @input="topicUpdate"
             >
               <template slot="prepend">{{ $t('testplan.send_topic') }}</template>
             </el-input>
@@ -90,6 +91,7 @@
               :disabled="isStartRunTestPlan"
               placeholder="Topic Name"
               v-model="subReceiveRecord.topic"
+              @input="topicUpdate"
             >
               <template slot="prepend">{{ $t('testplan.subscribe_topic') }}</template>
               <!-- <template slot="suffix">
@@ -200,6 +202,8 @@ export default class TestPlanDetail extends Vue {
     create_persion: '',
     resp_timeout: 3,
     retry_num: 0,
+    send_topic: '',
+    receive_topic: '',
   }
 
   /**
@@ -317,6 +321,18 @@ export default class TestPlanDetail extends Vue {
   }
 
   private isStartRunTestPlan: boolean = false
+
+  /**
+   * 更新topic信息
+   */
+  private async topicUpdate() {
+    this.testplan.send_topic = this.sendTopicName
+    this.testplan.receive_topic = this.sendTopicName
+
+    //更新topic到数据库
+    const { testPlanService } = useServices()
+    await testPlanService.update(this.testplan.id, this.testplan)
+  }
 
   /**
    * 列表页点击时传入的执行计划数据
@@ -1110,7 +1126,7 @@ export default class TestPlanDetail extends Vue {
         let testCase = tab.content[j]
         while (true) {
           // 发送消息
-          this.sendMessage(testCase.expectPayload)
+          this.sendMessage(testCase.sendPayload)
           // 每100毫秒获取一次数据，最多获取3秒钟
           const startTime = Date.now()
           let receivedMessage

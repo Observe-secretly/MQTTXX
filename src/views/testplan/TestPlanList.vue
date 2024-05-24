@@ -250,6 +250,8 @@ export default class TestPlanList extends Vue {
         create_persion: '',
         resp_timeout: 3,
         retry_num: 0,
+        send_topic: '',
+        receive_topic: '',
       },
       editableTabs: [
         {
@@ -273,7 +275,13 @@ export default class TestPlanList extends Vue {
 
     const isValidStructure = this.validateStructure(testPlanData, expectedStructure)
     if (!isValidStructure) {
-      console.error('导入的测试计划数据结构不符合预期')
+      this.$notify({
+        title: this.$tc('testplan.test_plan_json_invalid'),
+        message: '',
+        type: 'error',
+        duration: 3000,
+        offset: 30,
+      })
       return
     }
     //2、验证testplan是否已经存在。不存在则保存
@@ -311,7 +319,35 @@ export default class TestPlanList extends Vue {
     this.loadData(true)
   }
 
+  /**
+   * 第一次运行没有数据库表，则自动创建表
+   */
+  private async initTable() {
+    let isReload = false
+    const { testPlanService, testPlanCaseGroupService, testPlanCaseService } = useServices()
+    let exist = await testPlanService.tableExist()
+    if (!exist) {
+      await testPlanService.craeteTable()
+      isReload = true
+    }
+    exist = await testPlanCaseGroupService.tableExist()
+    if (!exist) {
+      await testPlanCaseGroupService.craeteTable()
+      isReload = true
+    }
+    exist = await testPlanCaseService.tableExist()
+    if (!exist) {
+      await testPlanCaseService.craeteTable()
+      isReload = true
+    }
+
+    if (isReload) {
+      location.reload()
+    }
+  }
+
   private mounted() {
+    this.initTable()
     this.loadData(true)
     // 监听主进程发送的导入响应消息。拿到json文件后做校验 没问题则导入
     ipcRenderer.on('imported-test-plan-data', (event, testPlanData) => {
