@@ -159,9 +159,15 @@
             </div>
             <div class="content">
               <!-- 导出测试用例 -->
-              <el-button plain size="small" icon="el-icon-download" @click="exportTestPlan">
-                {{ $t('testplan.export') }}</el-button
-              >
+              <p>
+                <el-button plain size="small" icon="el-icon-download" @click="exportTestPlan">
+                  {{ $t('testplan.export') }}</el-button
+                >
+              </p>
+              <!-- 打开开发者工具 -->
+              <p>
+                <a href="#" @click="openDevTools">打开开发者工具</a>
+              </p>
             </div>
           </el-col>
         </el-row>
@@ -263,7 +269,7 @@ export default class TestPlanDetail extends Vue {
     {
       headerName: this.$tc('testplan.head_response_payload'),
       field: 'responsePayload',
-      editable: false,
+      editable: true,
       minWidth: 200,
     },
     { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 100 },
@@ -1460,6 +1466,13 @@ export default class TestPlanDetail extends Vue {
     //退出编辑模式
     this.isEditTabName = false
     this.editTabName = ''
+  }
+
+  /**
+   * 打开开发者工具
+   */
+  private openDevTools() {
+    ipcRenderer.send('openDevTools')
   }
 
   private mounted() {

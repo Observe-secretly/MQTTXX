@@ -47,6 +47,11 @@ app.allowRendererProcessReuse = false
 const { ConnectionInit, ConnectionDestroy } = useConnection()
 
 function handleIpcMessages() {
+  ipcMain.on('openDevTools', () => {
+    if (win) {
+      win.webContents.openDevTools()
+    }
+  })
   ipcMain.on('setting', (event: Electron.IpcMainEvent, ...args: any[]) => {
     event.sender.send('setting', ...args)
     const [settingType, lang] = args
