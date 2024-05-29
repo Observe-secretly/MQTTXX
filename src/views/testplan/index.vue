@@ -5,6 +5,7 @@
         <TestPlanList
           ref="testplanListRef"
           :create-plan="toCreatePlan"
+          :edit-plan="toEditPlan"
           :show-detail="showDetail"
           :show-empty="showEmpty"
         />
@@ -20,7 +21,7 @@
 
       <TestPlanDetail v-show="isShowDetail" ref="testplanDetailRef" />
 
-      <TestPlanForm v-show="isCreatePlan" :oper="oper" :handle-back="formHandleBack" />
+      <TestPlanForm v-show="isCreatePlan" ref="testplanFormRef" :oper="oper" :handle-back="formHandleBack" />
     </div>
   </div>
 </template>
@@ -58,6 +59,20 @@ export default class TestPlan extends Vue {
     this.isShowDetail = false
   }
 
+  /**
+   * 编辑测试计划
+   * @param testplanModel
+   */
+  private toEditPlan(testplanModel: TestplanModel) {
+    this.isEmpty = false
+    this.isCreatePlan = true
+    this.isShowDetail = false
+
+    if (this.$refs.testplanFormRef) {
+      const testplanForm = this.$refs.testplanFormRef as TestPlanForm
+      testplanForm.loadData(testplanModel)
+    }
+  }
   /**
    * 创建/修改表单页面返回
    */

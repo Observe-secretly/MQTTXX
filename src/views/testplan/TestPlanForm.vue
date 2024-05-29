@@ -197,10 +197,20 @@ export default class TestPlanForm extends Vue {
   @Prop({ required: true }) public oper!: 'edit' | 'create' | undefined
   @Prop() public handleBack!: <T>(isReload: boolean) => T | void
 
+  /**
+   * 如果是编辑，则这里会传入要编辑的testplan
+   * @param testplanModel
+   */
+  loadData(testplanModel: TestplanModel) {
+    this.record = testplanModel
+    this.isEdit = true
+  }
+
   get leftValue(): string {
     return LeftValues.Show
   }
 
+  private isEdit = false
   private defaultRecord: TestplanModel = getDefaultRecord()
   private record: TestplanModel = _.cloneDeep(this.defaultRecord)
   private connections: ConnectionModel[] = []
@@ -223,7 +233,8 @@ export default class TestPlanForm extends Vue {
     const { testPlanService } = useServices()
     const data = { ...this.record }
     let res: TestplanModel | undefined = undefined
-    if (this.oper === 'create') {
+    //创建
+    if (!this.isEdit) {
       data.id = uuidv4()
       try {
         res = await testPlanService.create(data)
@@ -239,6 +250,27 @@ export default class TestPlanForm extends Vue {
       } catch (error) {
         this.$notify({
           title: this.$tc('common.createfailed'),
+          message: `${error.toString()}`,
+          type: 'error',
+          duration: 3000,
+          offset: 30,
+        })
+      }
+    } else {
+      //修改
+      try {
+        await testPlanService.update(data.id, data)
+        this.handleBack(true)
+        this.$notify({
+          title: this.$tc('common.editSuccess'),
+          message: '',
+          type: 'success',
+          duration: 3000,
+          offset: 30,
+        })
+      } catch (error) {
+        this.$notify({
+          title: this.$tc('common.editfailed'),
           message: `${error.toString()}`,
           type: 'error',
           duration: 3000,

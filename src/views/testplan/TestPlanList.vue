@@ -24,14 +24,6 @@
           @node-click="handleNodeExpand"
         >
           <span class="custom-tree-node" slot-scope="{ node, data }">
-            <el-input
-              v-if="data.isEdit"
-              ref="newCollectionInput"
-              size="small"
-              @keyup.enter.native="handleEditCompeleted(node, data)"
-              :placeholder="$t('connections.collectionPlaceholder')"
-              v-model="data.name"
-            ></el-input>
             <!-- connection -->
             <div
               class="testplan-item"
@@ -91,6 +83,8 @@ export default class TestPlanList extends Vue {
   @Prop() public showEmpty!: <T>(isClear: boolean) => T | void
 
   @Prop() public createPlan!: <T>() => T | void
+  @Prop() public editPlan!: <T>(testplanModel: TestplanModel) => T | void
+
   @Getter('currentTheme') private theme!: Theme
 
   private isLoadingData: boolean = false
@@ -127,19 +121,6 @@ export default class TestPlanList extends Vue {
 
     firstLoad && (this.isLoadingData = false)
     return
-  }
-
-  private async handleEditCompeleted(node: TreeNode<'id', CollectionModel>, data: CollectionModel) {
-    if (!data) return
-    const { collectionService } = useServices()
-    if (!this.handleCollectionNameValidate(data.name)) {
-      //  await this.handleEditCancel(node, data)
-    } else {
-      await collectionService.update(data, node.parent?.data.id)
-      await this.loadData(false)
-    }
-    data.isEdit = false
-    data.isNewing = false
   }
 
   private handleCollectionNameValidate(name: string): boolean {
@@ -210,7 +191,11 @@ export default class TestPlanList extends Vue {
   private handleEdit() {
     const id = this.selectedTestplan?.id
     this.showContextmenu = false
-    //TODO 跳转编辑页面
+    this.treeData.forEach((item) => {
+      if (item.id === id) {
+        this.editPlan(item)
+      }
+    })
   }
 
   /**

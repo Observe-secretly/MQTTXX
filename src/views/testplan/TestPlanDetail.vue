@@ -1133,7 +1133,7 @@ export default class TestPlanDetail extends Vue {
       try {
         messages.forEach((message: MessageModel) => {
           if (id === this.curConnectionId && message.payload != undefined) {
-            console.log(message.payload)
+            console.log('%c<--：' + message.payload, 'background-color: #409EFF; color: #ffffff;')
             //回复的消息放入环形队列中
             this.restoreCircularQueue.enqueue(message.payload)
           } else {
@@ -1153,14 +1153,18 @@ export default class TestPlanDetail extends Vue {
    * @param expectPayload 预期结果
    */
   private msgCompare(receivedMessage: string, expectPayload: string) {
+    // 移除接收到的消息和预期结果中的所有空格
+    const trimmedReceivedMessage = receivedMessage.replace(/\s/g, '')
+    const trimmedExpectPayload = expectPayload.replace(/\s/g, '')
+
     // 将通配符 '*' 转换为正则表达式 '.*'
-    let regexPattern = expectPayload.replace(/\*/g, '.*')
+    let regexPattern = trimmedExpectPayload.replace(/\*/g, '.*')
 
     // 创建正则表达式对象，使用 ^ 和 $ 来确保完全匹配
     let regex = new RegExp('^' + regexPattern + '$')
 
     // 使用正则表达式进行匹配
-    return regex.test(receivedMessage)
+    return regex.test(trimmedReceivedMessage)
   }
 
   /**
@@ -1190,10 +1194,15 @@ export default class TestPlanDetail extends Vue {
         let testCase = tab.content[j]
         let gridApi = this.gridApiMap.get(tab.name)
         while (true) {
+          // 如果测试计划已经停止，则退出
+          if (!this.isStartRunTestPlan) {
+            break
+          }
+
           testCase.result = 'failed'
           if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
             // 发送消息
-            this.sendMessage(testCase.sendPayload)
+            this.sendMessage(testCase.id, testCase.sendPayload)
             // 每100毫秒获取一次数据，最多获取3秒钟
             const startTime = Date.now()
             let receivedMessage
@@ -1250,7 +1259,9 @@ export default class TestPlanDetail extends Vue {
   /**
    * 发送消息
    */
-  private async sendMessage(content: string): Promise<string | void> {
+  private async sendMessage(caseId: string, content: string): Promise<string | void> {
+    console.log('\n%c' + caseId, 'background-color: red; color: #ffffff;')
+    console.log('%c-->' + content, 'background-color: #34c388; color: #ffffff;')
     let message: MessageModel = {
       id: uuidv4,
       out: false,
@@ -1430,7 +1441,6 @@ export default class TestPlanDetail extends Vue {
    * tabs的双击可编辑
    **/
   private tabsContent(name: string) {
-    console.log(name)
     this.isEditTabName = true
     this.editTabName = name
   }
