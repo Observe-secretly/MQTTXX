@@ -55,7 +55,11 @@
               :columnDefs="columnDefs"
               :rowData="item.content"
               :defaultColDef="defaultColDef"
-              @grid-ready="onGridReady"
+              @grid-ready="
+                (tdata) => {
+                  onGridReady(tdata, item.name)
+                }
+              "
               @cell-value-changed="updateCase"
             ></ag-grid-vue>
             <!-- edit tips -->
@@ -318,12 +322,12 @@ export default class TestPlanDetail extends Vue {
     filter: true,
   }
 
-  private gridApi: any
-  private gridColumnApi: any
+  private gridApiMap = new Map()
+  private gridColumnApiMap = new Map()
 
-  private onGridReady(params: any) {
-    this.gridApi = params.api
-    this.gridColumnApi = params.columnApi
+  private onGridReady(params: any, name: string) {
+    this.gridApiMap.set(name, params.api)
+    this.gridColumnApiMap.set(name, params.columnApi)
   }
 
   private isStartRunTestPlan: boolean = false
@@ -997,15 +1001,16 @@ export default class TestPlanDetail extends Vue {
         content.result = ''
         content.responsePayload = ''
       })
-    })
 
-    // 刷新当前渲染的表格
-    if (this.gridApi) {
-      const rowCount = this.gridApi.rowModel.getRowCount()
-      for (let i = 0; i < rowCount; i++) {
-        this.gridApi.refreshCells({ rowNodes: [this.gridApi.getRowNode(i)] })
+      // 刷新当前渲染的表格
+      let gridApi = this.gridApiMap.get(tab.name)
+      if (gridApi && gridApi != undefined) {
+        const rowCount = gridApi.rowModel.getRowCount()
+        for (let i = 0; i < rowCount; i++) {
+          gridApi.refreshCells({ rowNodes: [gridApi.getRowNode(i)] })
+        }
       }
-    }
+    })
   }
 
   /**
@@ -1159,14 +1164,31 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
+   * 切换tab
+   * @param tab
+   */
+  private switchTab(tab: any) {
+    this.editableTabsValue = tab.name
+
+    this.currentTabGroup = {
+      label: tab.label,
+      name: tab.name,
+      plan_id: this.currentTabGroup.plan_id,
+    }
+  }
+
+  /**
    * 循环发送Case消息
    */
   private async sendCaseMessage() {
     // 串行发送测试用例
     for (let i = 0; i < this.editableTabs.length; i++) {
       let tab = this.editableTabs[i]
+      this.switchTab(tab)
+
       for (let j = 0; j < tab.content.length; j++) {
         let testCase = tab.content[j]
+        let gridApi = this.gridApiMap.get(tab.name)
         while (true) {
           testCase.result = 'failed'
           if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
@@ -1189,8 +1211,8 @@ export default class TestPlanDetail extends Vue {
           }
 
           // 刷新表格
-          if (this.gridApi) {
-            this.gridApi.refreshCells({ rowNodes: [this.gridApi.getRowNode(j)] })
+          if (gridApi && gridApi != undefined) {
+            gridApi.refreshCells({ rowNodes: [gridApi.getRowNode(j)] })
           }
           //刷新统计报表
           this.report()
