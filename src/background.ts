@@ -229,7 +229,7 @@ async function createWindow() {
     minHeight: 650,
     minWidth: 997,
     webPreferences: {
-      devTools: isDevelopment,
+      devTools: true,
       webSecurity: false,
       enableRemoteModule: true,
       nodeIntegration: true,
