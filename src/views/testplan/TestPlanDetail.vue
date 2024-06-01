@@ -272,7 +272,13 @@ export default class TestPlanDetail extends Vue {
       editable: true,
       minWidth: 200,
     },
-    { headerName: this.$tc('testplan.head_result'), field: 'result', editable: false, maxWidth: 100 },
+    {
+      headerName: this.$tc('testplan.head_result'),
+      field: 'result',
+      editable: false,
+      maxWidth: 100,
+      cellRenderer: this.renderCaseResultButton,
+    },
     {
       headerName: this.$tc('testplan.operation'),
       cellRenderer: this.renderDeleteCaseButton,
@@ -655,6 +661,18 @@ export default class TestPlanDetail extends Vue {
    */
   private renderDeleteCaseButton(row: any) {
     return `<a style="color:red;" href="#" class="delete-case-button" data-id="${row.data.id}">Delete</a>`
+  }
+
+  private renderCaseResultButton(row: any) {
+    if (row.data.result) {
+      if (row.data.result == 'success') {
+        return `<i class='el-icon-success' style='color:#34c388;font-size:20px;'></i>`
+      } else if (row.data.result == 'failed') {
+        return `<i class='el-icon-error' style='color:red;font-size:20px;'></i>`
+      }
+    } else {
+      return ''
+    }
   }
 
   private handleDeleteButtonClick(event: any) {
