@@ -669,6 +669,8 @@ export default class TestPlanDetail extends Vue {
         return `<i class='el-icon-success' style='color:#34c388;font-size:20px;'></i>`
       } else if (row.data.result == 'failed') {
         return `<i class='el-icon-error' style='color:red;font-size:20px;'></i>`
+      } else if (row.data.result == 'send') {
+        return `<i class='el-icon-loading' style='font-size:20px;'></i>`
       }
     } else {
       return ''
@@ -1031,7 +1033,7 @@ export default class TestPlanDetail extends Vue {
       if (gridApi && gridApi != undefined) {
         const rowCount = gridApi.rowModel.getRowCount()
         for (let i = 0; i < rowCount; i++) {
-          gridApi.refreshCells({ rowNodes: [gridApi.getRowNode(i)] })
+          this.refreshGridRow(gridApi, i)
         }
       }
     })
@@ -1223,30 +1225,38 @@ export default class TestPlanDetail extends Vue {
             break
           }
 
-          testCase.result = 'failed'
+          testCase.result = ''
           if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
             // 发送消息
             this.sendMessage(testCase.id, testCase.sendPayload)
+            //更新tab状态
+            testCase.result = 'send'
+            this.refreshGridRow(gridApi, j)
             // 每100毫秒获取一次数据，最多获取3秒钟
             const startTime = Date.now()
             let receivedMessage
             let timeout = this.testplan.resp_timeout * 1000
+
+            let isSuccess = false
             while (Date.now() - startTime < timeout) {
               receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
               if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
                 testCase.result = 'success'
                 testCase.responsePayload = receivedMessage
+                isSuccess = true
                 break
               } else if (receivedMessage !== undefined) {
                 console.log('Received unexpected message:', receivedMessage)
               }
             }
+
+            if (!isSuccess) {
+              testCase.result = 'failed'
+            }
           }
 
           // 刷新表格
-          if (gridApi && gridApi != undefined) {
-            gridApi.refreshCells({ rowNodes: [gridApi.getRowNode(j)] })
-          }
+          this.refreshGridRow(gridApi, j)
           //刷新统计报表
           this.report()
           break
@@ -1254,6 +1264,16 @@ export default class TestPlanDetail extends Vue {
       }
     }
     this.stopTestPlan()
+  }
+
+  /**
+   * 刷新表格的某一个行
+   * @param gridApi
+   */
+  private refreshGridRow(gridApi: any, index: number) {
+    if (gridApi && gridApi != undefined) {
+      gridApi.refreshCells({ rowNodes: [gridApi.getRowNode(index)] })
+    }
   }
 
   /**
