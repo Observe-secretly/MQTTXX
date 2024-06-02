@@ -179,6 +179,7 @@
 <script lang="ts">
 import { Component, Vue, Watch } from 'vue-property-decorator'
 import { LeftValues } from '@/utils/styles'
+import { MessageBox } from 'element-ui'
 import _, { forEach } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 import { Action, Getter } from 'vuex-class'
@@ -617,27 +618,38 @@ export default class TestPlanDetail extends Vue {
    * @param id
    */
   private async removeCase(id: any) {
-    // 根据 this.currentGroup.name 找到对应的 tab
-    const tab = this.editableTabs.find((tab) => tab.name === this.currentTabGroup.name)
-    if (tab) {
-      // 从 content 中删除指定的元素(前端渲染)
-      if (tab.content.length > 0) {
-        for (let i = 0; i < tab.content.length; i++) {
-          if (tab.content[i].id === id) {
-            // 删除找到的行
-            tab.content.splice(i, 1)
-            //在数据库中删除case
-            const { testPlanCaseService } = useServices()
-            await testPlanCaseService.delete(id)
+    try {
+      await MessageBox.confirm('你确定要删除测试用例吗?', '删除', {
+        confirmButtonText: '是',
+        cancelButtonText: '否',
+        type: 'error',
+      })
 
-            break // 删除第一个匹配的行后跳出循环
+      // 根据 this.currentGroup.name 找到对应的 tab
+      const tab = this.editableTabs.find((tab) => tab.name === this.currentTabGroup.name)
+      if (tab) {
+        // 从 content 中删除指定的元素(前端渲染)
+        if (tab.content.length > 0) {
+          for (let i = 0; i < tab.content.length; i++) {
+            if (tab.content[i].id === id) {
+              // 删除找到的行
+              tab.content.splice(i, 1)
+              //在数据库中删除case
+              const { testPlanCaseService } = useServices()
+              await testPlanCaseService.delete(id)
+
+              break // 删除第一个匹配的行后跳出循环
+            }
           }
+        } else {
+          console.error(`No rows to remove in tab with name ${this.currentTabGroup.name}`)
         }
       } else {
-        console.error(`No rows to remove in tab with name ${this.currentTabGroup.name}`)
+        console.error(`Tab with name ${this.currentTabGroup.name} not found`)
       }
-    } else {
-      console.error(`Tab with name ${this.currentTabGroup.name} not found`)
+    } catch (error) {
+      // User cancelled the confirmation
+      console.log('Deletion cancelled by user')
     }
   }
 
@@ -660,7 +672,7 @@ export default class TestPlanDetail extends Vue {
    * 渲染删除case的删除按钮
    */
   private renderDeleteCaseButton(row: any) {
-    return `<a style="color:red;" href="#" class="delete-case-button" data-id="${row.data.id}">Delete</a>`
+    return `<i style="color:red;font-size:20px;cursor: pointer;" class="delete-case-button el-icon-delete" data-id="${row.data.id}"></i>`
   }
 
   private renderCaseResultButton(row: any) {
