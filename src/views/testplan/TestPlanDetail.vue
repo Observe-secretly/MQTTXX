@@ -142,7 +142,7 @@
                 type="primary"
                 size="small"
                 icon="el-icon-caret-right"
-                @click="runTestPlan"
+                @click="runTestPlanAll"
               >
                 {{ $t('testplan.run_testplan') }}</el-button
               >
@@ -277,6 +277,7 @@ export default class TestPlanDetail extends Vue {
       headerName: this.$tc('testplan.head_result'),
       field: 'result',
       editable: false,
+      minWidth: 100,
       maxWidth: 100,
       cellRenderer: this.renderCaseResultButton,
     },
@@ -284,7 +285,8 @@ export default class TestPlanDetail extends Vue {
       headerName: this.$tc('testplan.operation'),
       cellRenderer: this.renderDeleteCaseButton,
       editable: false,
-      maxWidth: 80,
+      minWidth: 100,
+      maxWidth: 100,
     },
   ]
 
@@ -614,6 +616,14 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
+   * 单独运行某一个case
+   * @param id
+   */
+  private singleRunCase(id: any) {
+    this.runTestPlan(id)
+  }
+
+  /**
    * 删除case
    * @param id
    */
@@ -669,18 +679,22 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
-   * 渲染删除case的删除按钮
+   * 渲染操作按钮
    */
   private renderDeleteCaseButton(row: any) {
-    return `<i style="color:red;font-size:20px;cursor: pointer;" class="delete-case-button el-icon-delete" data-id="${row.data.id}"></i>`
+    let html = `
+      <i class="run-case-button el-icon-video-play" data-id="${row.data.id}"></i> 
+      <i class="delete-case-button el-icon-delete" data-id="${row.data.id}"></i>
+    `
+    return html
   }
 
   private renderCaseResultButton(row: any) {
     if (row.data.result) {
       if (row.data.result == 'success') {
-        return `<i class='el-icon-success' style='color:#34c388;font-size:20px;'></i>`
+        return `<i class='el-icon-circle-chec' style='color:#34c388;font-size:20px;'></i>`
       } else if (row.data.result == 'failed') {
-        return `<i class='el-icon-error' style='color:red;font-size:20px;'></i>`
+        return `<i class='el-icon-circle-close' style='color:red;font-size:20px;'></i>`
       } else if (row.data.result == 'send') {
         return `<i class='el-icon-loading' style='font-size:20px;'></i>`
       }
@@ -689,94 +703,46 @@ export default class TestPlanDetail extends Vue {
     }
   }
 
+  /**
+   * 给表格上的操作列增加监听
+   * @param event
+   */
+
   private handleDeleteButtonClick(event: any) {
     if (event.target.classList.contains('delete-case-button')) {
       event.preventDefault() // 阻止默认链接点击行为
       const id = event.target.dataset.id
       this.removeCase(id)
+    } else if (event.target.classList.contains('run-case-button')) {
+      event.preventDefault() // 阻止默认链接点击行为
+      const id = event.target.dataset.id
+      this.singleRunCase(id)
     }
   }
-
-  // /**
-  //  * 保存测试计划明细
-  //  */
-  // private savePlanDetail() {
-  //   //1、校验表格的名称、发送、预期数据不能为空
-  //   for (let i = 0; i < this.editableTabs.length; i++) {
-  //     const tab = this.editableTabs[i]
-  //     if (tab.name === this.currentTabGroup.name) {
-  //       if (tab.content.length == 0) return
-  //       for (let j = 0; j < tab.content.length; j++) {
-  //         const caseItem = tab.content[j]
-  //         if (caseItem.name === '' || caseItem.sendPayload === '' || caseItem.expectPayload === '') {
-  //           this.$notify({
-  //             title: this.$tc('testplan.case_info_incomplete'),
-  //             message: '',
-  //             type: 'error',
-  //             duration: 3000,
-  //             offset: 30,
-  //           })
-  //           return
-  //         }
-  //       }
-  //       break
-  //     }
-  //   }
-  //   //2、删除这个tab下的所有case
-  //   const { testPlanCaseService } = useServices()
-  //   try {
-  //     testPlanCaseService.deleteByGroupId(this.currentTabGroup.name)
-  //   } catch (error) {
-  //     this.$notify({
-  //       title: this.$tc('testplan.case_info_incomplete'),
-  //       message: `${error.toString()}`,
-  //       type: 'error',
-  //       duration: 3000,
-  //       offset: 30,
-  //     })
-  //     return
-  //   }
-
-  //   //3、保存当前数据
-  //   try {
-  //     for (let i = 0; i < this.editableTabs.length; i++) {
-  //       const tab = this.editableTabs[i]
-  //       if (tab.name === this.currentTabGroup.name) {
-  //         for (let j = 0; j < tab.content.length; j++) {
-  //           const caseItem = tab.content[j]
-  //           testPlanCaseService.create(caseItem)
-  //         }
-  //         break // 找到匹配的 tab 后跳出外层循环
-  //       }
-  //     }
-  //     this.$notify({
-  //       title: this.$tc('testplan.save_case_successed'),
-  //       message: '',
-  //       type: 'success',
-  //       duration: 3000,
-  //       offset: 30,
-  //     })
-  //   } catch (error) {
-  //     this.$notify({
-  //       title: this.$tc('testplan.createfailed_case'),
-  //       message: `${error.toString()}`,
-  //       type: 'error',
-  //       duration: 3000,
-  //       offset: 30,
-  //     })
-  //   }
-  // }
+  /**
+   * 运行所有测试用例
+   */
+  private async runTestPlanAll() {
+    this.runTestPlan(undefined)
+  }
 
   /**
    * 运行测试计划
+   * @param caseId 此值可以为空。为空时测试全部测试用例。
    */
-  private async runTestPlan() {
+  private async runTestPlan(caseId: any) {
+    let isSignleRunCase = false
     if (this.isStartRunTestPlan) {
       return
     }
 
-    //清理测试报告
-    this.clearReport()
+    //只有测试全部的时候才清空测试报告
+    if (!caseId) {
+      //清理测试报告
+      this.clearReport()
+    } else {
+      isSignleRunCase = true
+    }
 
     // this.editableTabs
     const { connectionService } = useServices()
@@ -807,20 +773,21 @@ export default class TestPlanDetail extends Vue {
       return
     }
     //3、循环发送所有case。等待响应
-    this.sendCaseMessage()
+    if (isSignleRunCase) {
+      this.sendSingleCaseMessage(caseId)
+    } else {
+      this.sendCaseMessage()
+    }
   }
 
   /**
    * 停止测试计划
    */
-  private stopTestPlan() {
-    if (this.isStartRunTestPlan) {
-      //断开mqtt连接
-      this.disconnect()
-
-      //切换状态
-      this.isStartRunTestPlan = false
-    }
+  private async stopTestPlan() {
+    //断开mqtt连接
+    this.disconnect()
+    //切换状态
+    this.isStartRunTestPlan = false
   }
 
   // Connect
@@ -874,11 +841,6 @@ export default class TestPlanDetail extends Vue {
     this.client.end!(false, () => {
       this.disconnectLoding = false
       this.reTryConnectTimes = 0
-
-      // this.changeActiveConnection({
-      //   id: this.curConnectionId,
-      //   client: this.client,
-      // })
       this.$notify({
         title: this.$tc('connections.disconnected'),
         message: '',
@@ -886,9 +848,6 @@ export default class TestPlanDetail extends Vue {
         duration: 3000,
         offset: 30,
       })
-      // if (!this.showClientInfo) {
-      //   this.setShowClientInfo(true)
-      // }
       this.$log.info(
         `MQTTX client named ${this.connectionModel.name} with client ID ${this.connectionModel.clientId} disconnected`,
       )
@@ -963,12 +922,7 @@ export default class TestPlanDetail extends Vue {
   private onDisconnect(packet: IDisconnectPacket) {
     const reasonCode = packet.reasonCode!
     const reason = reasonCode === 0 ? 'Normal disconnection' : getErrorReason('5.0', reasonCode)
-    // this.notifyMsgWithCopilot(
-    //   this.$t('connections.onDisconnect', { reason, reasonCode }) as string,
-    //   JSON.stringify(packet),
-    //   () => {},
-    //   'warning',
-    // )
+    console.log('onDisconnect:' + reason)
     const logMessage = 'Received disconnect packet from Broker. MQTT.js onDisconnect trigger'
     this.$log.warn(logMessage)
   }
@@ -1220,16 +1174,84 @@ export default class TestPlanDetail extends Vue {
   }
 
   /**
+   * 发送单个测试用例消息
+   * @param caseId
+   */
+  private async sendSingleCaseMessage(caseId: any) {
+    // 串行发送测试用例
+    for (let i = 0; i < this.editableTabs.length; i++) {
+      let tab = this.editableTabs[i]
+
+      for (let j = 0; j < tab.content.length; j++) {
+        let testCase = tab.content[j]
+        if (caseId != testCase.id) {
+          continue
+        }
+
+        let gridApi = this.gridApiMap.get(tab.name)
+        while (true) {
+          // 如果测试计划已经停止，则退出
+          if (!this.isStartRunTestPlan) {
+            break
+          }
+
+          testCase.result = 'failed'
+          if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
+            // 发送消息
+            this.sendMessage(testCase.id, testCase.sendPayload)
+            //更新tab状态
+            testCase.result = 'send'
+            this.refreshGridRow(gridApi, j)
+            // 每100毫秒获取一次数据，最多获取3秒钟
+            const startTime = Date.now()
+            let receivedMessage
+            let timeout = this.testplan.resp_timeout * 1000
+
+            let isSuccess = false
+            while (Date.now() - startTime < timeout) {
+              receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
+              if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
+                testCase.result = 'success'
+                testCase.responsePayload = receivedMessage
+                isSuccess = true
+                break
+              } else if (receivedMessage !== undefined) {
+                console.log('Received unexpected message:', receivedMessage)
+              }
+            }
+
+            if (!isSuccess) {
+              testCase.result = 'failed'
+            }
+          }
+
+          // 刷新表格
+          this.refreshGridRow(gridApi, j)
+          //刷新统计报表
+          this.report()
+          break
+        }
+      }
+    }
+    this.stopTestPlan()
+  }
+
+  /**
    * 循环发送Case消息
    */
   private async sendCaseMessage() {
     // 串行发送测试用例
     for (let i = 0; i < this.editableTabs.length; i++) {
       let tab = this.editableTabs[i]
-      this.switchTab(tab)
+
+      if (this.isStartRunTestPlan) {
+        //防止中断后页面切换到了最后一个tab
+        this.switchTab(tab)
+      }
 
       for (let j = 0; j < tab.content.length; j++) {
         let testCase = tab.content[j]
+
         let gridApi = this.gridApiMap.get(tab.name)
         while (true) {
           // 如果测试计划已经停止，则退出
@@ -1629,6 +1651,19 @@ export default class TestPlanDetail extends Vue {
 
   .edit-tab-input {
     width: 120px;
+  }
+
+  .delete-case-button {
+    color: red;
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  .run-case-button {
+    color: var(--color-main-green);
+    font-size: 24px;
+    cursor: pointer;
+    margin-right: 10px;
   }
 }
 </style>
