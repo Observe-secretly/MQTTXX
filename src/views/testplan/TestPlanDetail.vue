@@ -240,6 +240,7 @@ export default class TestPlanDetail extends Vue {
           sendPayload: '',
           expectPayload: '',
           responsePayload: '',
+          retryNum: 0,
           result: '',
         },
       ],
@@ -273,6 +274,11 @@ export default class TestPlanDetail extends Vue {
       editable: true,
       resizable: true,
       minWidth: 200,
+    },
+    {
+      headerName: this.$tc('testplan.retry_num'),
+      field: 'retryNum',
+      minWidth: 80,
     },
     {
       headerName: this.$tc('testplan.head_result'),
@@ -469,6 +475,7 @@ export default class TestPlanDetail extends Vue {
       expectPayload: '',
       responsePayload: '',
       result: '',
+      retryNum: 0,
     }
   }
 
@@ -993,6 +1000,7 @@ export default class TestPlanDetail extends Vue {
       tab.content.forEach((content, index) => {
         content.result = ''
         content.responsePayload = ''
+        content.retryNum = 0
       })
 
       // 刷新当前渲染的表格
@@ -1189,49 +1197,7 @@ export default class TestPlanDetail extends Vue {
           continue
         }
 
-        let gridApi = this.gridApiMap.get(tab.name)
-        while (true) {
-          // 如果测试计划已经停止，则退出
-          if (!this.isStartRunTestPlan) {
-            break
-          }
-
-          testCase.result = 'failed'
-          if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
-            // 发送消息
-            this.sendMessage(testCase.id, testCase.sendPayload)
-            //更新tab状态
-            testCase.result = 'send'
-            this.refreshGridRow(gridApi, j)
-            // 每100毫秒获取一次数据，最多获取3秒钟
-            const startTime = Date.now()
-            let receivedMessage
-            let timeout = this.testplan.resp_timeout * 1000
-
-            let isSuccess = false
-            while (Date.now() - startTime < timeout) {
-              receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
-              if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
-                testCase.result = 'success'
-                testCase.responsePayload = receivedMessage
-                isSuccess = true
-                break
-              } else if (receivedMessage !== undefined) {
-                console.log('Received unexpected message:', receivedMessage)
-              }
-            }
-
-            if (!isSuccess) {
-              testCase.result = 'failed'
-            }
-          }
-
-          // 刷新表格
-          this.refreshGridRow(gridApi, j)
-          //刷新统计报表
-          this.report()
-          break
-        }
+        await this.sendCaseCore(tab, testCase, j)
       }
     }
     this.stopTestPlan()
@@ -1253,52 +1219,72 @@ export default class TestPlanDetail extends Vue {
       for (let j = 0; j < tab.content.length; j++) {
         let testCase = tab.content[j]
 
-        let gridApi = this.gridApiMap.get(tab.name)
-        while (true) {
-          // 如果测试计划已经停止，则退出
-          if (!this.isStartRunTestPlan) {
-            break
-          }
-
-          testCase.result = ''
-          if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
-            // 发送消息
-            this.sendMessage(testCase.id, testCase.sendPayload)
-            //更新tab状态
-            testCase.result = 'send'
-            this.refreshGridRow(gridApi, j)
-            // 每100毫秒获取一次数据，最多获取3秒钟
-            const startTime = Date.now()
-            let receivedMessage
-            let timeout = this.testplan.resp_timeout * 1000
-
-            let isSuccess = false
-            while (Date.now() - startTime < timeout) {
-              receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
-              if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
-                testCase.result = 'success'
-                testCase.responsePayload = receivedMessage
-                isSuccess = true
-                break
-              } else if (receivedMessage !== undefined) {
-                console.log('Received unexpected message:', receivedMessage)
-              }
-            }
-
-            if (!isSuccess) {
-              testCase.result = 'failed'
-            }
-          }
-
-          // 刷新表格
-          this.refreshGridRow(gridApi, j)
-          //刷新统计报表
-          this.report()
-          break
-        }
+        await this.sendCaseCore(tab, testCase, j)
       }
     }
     this.stopTestPlan()
+  }
+
+  /**
+   * 发送测试消息并且更新table的核心方法
+   * @param tab
+   * @param testCase
+   * @param rowIndex
+   */
+  private async sendCaseCore(tab: any, testCase: any, rowIndex: any) {
+    let gridApi = this.gridApiMap.get(tab.name)
+    let currentRetryNum = 0
+    while (true) {
+      currentRetryNum = 0
+      // 如果测试计划已经停止，则退出
+      if (!this.isStartRunTestPlan) {
+        break
+      }
+
+      testCase.result = 'failed'
+      if (testCase.name != '' || testCase.sendPayload != '' || testCase.expectPayload != '') {
+        while (currentRetryNum <= this.testplan.retry_num) {
+          // 发送消息
+          this.sendMessage(testCase.id, testCase.sendPayload)
+          testCase.retryNum = currentRetryNum
+
+          //更新table状态
+          testCase.result = 'send'
+          this.refreshGridRow(gridApi, rowIndex)
+          // 每100毫秒获取一次数据，最多获取3秒钟
+          const startTime = Date.now()
+          let receivedMessage
+          let timeout = this.testplan.resp_timeout * 1000
+
+          let isSuccess = false
+          while (Date.now() - startTime < timeout) {
+            receivedMessage = await this.getMessageFromQueue(timeout - (Date.now() - startTime))
+            if (receivedMessage !== undefined && this.msgCompare(receivedMessage, testCase.expectPayload)) {
+              testCase.result = 'success'
+              testCase.responsePayload = receivedMessage
+              isSuccess = true
+              break
+            } else if (receivedMessage !== undefined) {
+              console.log('Received unexpected message:', receivedMessage)
+            }
+          }
+
+          if (isSuccess) {
+            break
+          } else {
+            testCase.result = 'failed'
+          }
+
+          currentRetryNum++
+        }
+      }
+
+      // 刷新表格
+      this.refreshGridRow(gridApi, rowIndex)
+      //刷新统计报表
+      this.report()
+      break
+    }
   }
 
   /**

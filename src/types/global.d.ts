@@ -289,6 +289,7 @@ declare global {
     sendPayload: string
     expectPayload: string
     responsePayload: string
+    retryNum: number
     result: string
   }
 
