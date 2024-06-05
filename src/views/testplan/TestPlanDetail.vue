@@ -251,34 +251,35 @@ export default class TestPlanDetail extends Vue {
    * 定义表格的头
    */
   private columnDefs = [
-    { headerName: this.$tc('testplan.id'), field: 'id', editable: false, maxWidth: 110 },
-    { headerName: this.$tc('testplan.head_name'), field: 'name', editable: true, minWidth: 100, maxWidth: 180 },
+    { headerName: this.$tc('testplan.id'), field: 'id', editable: false, minWidth: 110, maxWidth: 110 },
+    { headerName: this.$tc('testplan.head_name'), field: 'name', editable: true, resizable: true, minWidth: 100 },
     {
       headerName: this.$tc('testplan.head_send_payload'),
       field: 'sendPayload',
       editable: true,
+      resizable: true,
       minWidth: 100,
-      maxWidth: 200,
     },
     {
       headerName: this.$tc('testplan.head_expect_payload'),
       field: 'expectPayload',
       editable: true,
+      resizable: true,
       minWidth: 100,
-      maxWidth: 200,
     },
     {
       headerName: this.$tc('testplan.head_response_payload'),
       field: 'responsePayload',
       editable: true,
+      resizable: true,
       minWidth: 200,
     },
     {
       headerName: this.$tc('testplan.head_result'),
       field: 'result',
       editable: false,
-      minWidth: 100,
-      maxWidth: 100,
+      minWidth: 80,
+      maxWidth: 80,
       cellRenderer: this.renderCaseResultButton,
     },
     {
@@ -692,7 +693,7 @@ export default class TestPlanDetail extends Vue {
   private renderCaseResultButton(row: any) {
     if (row.data.result) {
       if (row.data.result == 'success') {
-        return `<i class='el-icon-circle-chec' style='color:#34c388;font-size:20px;'></i>`
+        return `<i class='el-icon-circle-check' style='color:#34c388;font-size:20px;'></i>`
       } else if (row.data.result == 'failed') {
         return `<i class='el-icon-circle-close' style='color:red;font-size:20px;'></i>`
       } else if (row.data.result == 'send') {
