@@ -258,6 +258,7 @@ export default class TestPlanList extends Vue {
       ],
     }
 
+    //数据有效性校验
     const isValidStructure = this.validateStructure(testPlanData, expectedStructure)
     if (!isValidStructure) {
       this.$notify({
@@ -269,34 +270,28 @@ export default class TestPlanList extends Vue {
       })
       return
     }
-    //2、验证testplan是否已经存在。不存在则保存
+    //2、创建测试计划
     const { testPlanService, testPlanCaseGroupService, testPlanCaseService } = useServices()
-    let planId = testPlanData.testplan.id
-    const testplanModel = await testPlanService.get(planId)
-    if (testplanModel) {
-      this.$notify({
-        title: this.$tc('testplan.test_plan_exist'),
-        message: '',
-        type: 'error',
-        duration: 3000,
-        offset: 30,
-      })
-    } else {
-      await testPlanService.create(testPlanData.testplan)
-    }
+    let planId = uuidv4()
+    testPlanData.testplan.id = planId
+    await testPlanService.create(testPlanData.testplan)
 
-    //3、循环验证testplanGroup是否已经存在。不存在则保存。并且保存testplanGroup下的case
+    //3、创建测试组和测试case
     testPlanData.editableTabs.forEach(async (tab: any, index: number) => {
+      let groupName = uuidv4()
+
       await testPlanCaseGroupService.create({
         label: tab.title,
-        name: tab.name,
+        name: groupName,
         plan_id: planId,
       })
 
       //循环创建case
-      tab.content.forEach(async (caseItem: any, index: number) => {
+      tab.content.forEach(async (caseItem: TestPlanCaseModel, index: number) => {
         //case的id是8位随机数 容易重复。所以重新随机一次
         caseItem.id = uuidv4().substr(0, 8)
+        caseItem.group_id = groupName
+        caseItem.planId = planId
         await testPlanCaseService.create(caseItem)
       })
     })
